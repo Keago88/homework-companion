@@ -474,7 +474,7 @@ const AuthScreen = ({ onLogin, isLoading, useFirebase }) => {
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">I am a</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[ROLES.STUDENT, ROLES.PARENT, ROLES.TEACHER, ROLES.ADMIN].map(r => (
-                  <button key={r} type="button" onClick={() => setFormData(prev => ({...prev, role: r}))} className={`py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider border-2 transition-all shadow-sm ${formData.role === r ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-transparent bg-white/50 text-slate-400 hover:bg-white'}`}>{r}</button>
+                  <button key={r} type="button" onClick={() => setFormData(prev => ({...prev, role: r}))} className={`flex items-center justify-center min-h-[44px] py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider border-2 transition-all shadow-sm w-full ${formData.role === r ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-transparent bg-white/50 text-slate-400 hover:bg-white'}`}>{r}</button>
                 ))}
               </div>
             </div>

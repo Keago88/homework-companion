@@ -1,0 +1,15 @@
+COPY THIS ENTIRE LINE and add it to GitHub:
+============================================
+
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFZu8uj1IKf+yaYprPYub7pOdyQ8/yWCJNKMkiHRRvn5 keago88@github
+
+============================================
+
+STEPS:
+1. Open: https://github.com/settings/ssh/new
+2. Title: Homework Companion (or any name)
+3. Key type: Authentication Key
+4. Paste the line above into the "Key" box
+5. Click "Add SSH key"
+
+Then run in terminal: git push -u origin main

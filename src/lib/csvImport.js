@@ -49,3 +49,32 @@ export function parseAssignmentsCSV(text) {
   }
   return { ok: true, items };
 }
+
+/**
+ * CSV import for schools/teachers/classes (admin).
+ * Expected columns: schoolName, teacherEmail, teacherName, className (all optional except schoolName)
+ */
+export function parseSchoolsCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return { ok: false, error: 'Need header and at least one row', created: 0, teachers: 0, classes: 0 };
+  const header = lines[0].toLowerCase();
+  const cols = header.split(/,\s*/).map(c => c.trim().replace(/\s+/g, ''));
+  const schoolIdx = cols.findIndex(c => ['schoolname', 'school_name', 'school'].includes(c));
+  const teacherEmailIdx = cols.findIndex(c => ['teacheremail', 'teacher_email', 'email'].includes(c));
+  const teacherNameIdx = cols.findIndex(c => ['teachername', 'teacher_name', 'teacher'].includes(c));
+  const classIdx = cols.findIndex(c => ['classname', 'class_name', 'class'].includes(c));
+
+  if (schoolIdx < 0) return { ok: false, error: 'CSV must have a "schoolName" column', created: 0, teachers: 0, classes: 0 };
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+    const schoolName = vals[schoolIdx] || '';
+    if (!schoolName) continue;
+    const teacherEmail = (teacherEmailIdx >= 0 && vals[teacherEmailIdx]) ? vals[teacherEmailIdx] : '';
+    const teacherName = (teacherNameIdx >= 0 && vals[teacherNameIdx]) ? vals[teacherNameIdx] : teacherEmail;
+    const className = (classIdx >= 0 && vals[classIdx]) ? vals[classIdx] : '';
+    rows.push({ schoolName, teacherEmail, teacherName, className });
+  }
+  return { ok: true, rows };
+}

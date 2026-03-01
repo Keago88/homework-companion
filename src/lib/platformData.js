@@ -1,7 +1,9 @@
 /**
  * Platform data layer: schools, classes, roster, parent-child links, grades.
- * Uses localStorage for demo; replace with Firestore in production.
+ * Uses localStorage for demo; Firestore for parent links when configured.
  */
+import { db } from './firebase';
+import { collection, doc, getDoc, setDoc, getDocs, query, where } from 'firebase/firestore';
 
 const KEYS = {
   SCHOOLS: 'hwc_schools',
@@ -79,6 +81,19 @@ export const addClassToSchool = (schoolId, className, teacherEmail) => {
   return id;
 };
 
+export const removeTeacherFromSchool = (schoolId, teacherEmail) => {
+  const schools = getSchools();
+  const s = schools.find(x => x.id === schoolId);
+  if (!s) return;
+  s.teachers = (s.teachers || []).filter(t => t.email !== teacherEmail);
+  saveSchools(schools);
+};
+
+export const removeSchool = (schoolId) => {
+  const schools = getSchools().filter(x => x.id !== schoolId);
+  saveSchools(schools);
+};
+
 export const addStudentToClass = (schoolId, classId, studentEmail, studentName) => {
   const schools = getSchools();
   const s = schools.find(x => x.id === schoolId);
@@ -91,22 +106,24 @@ export const addStudentToClass = (schoolId, classId, studentEmail, studentName) 
   }
 };
 
-// --- Parent-child linking ---
-export const generatePairingCode = (studentEmail) => {
+// --- Parent-child linking (Firestore when db available, else localStorage) ---
+const PARENT_LINKS_COLLECTION = 'parent_links';
+
+const toDocId = (email) => btoa(encodeURIComponent((email || '').toLowerCase())).replace(/[/+=]/g, '_');
+
+const useFirestore = () => !!db;
+
+const generatePairingCodeLocal = (studentEmail) => {
   const code = `${(studentEmail || '').slice(0, 4).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
   const links = getParentLinks();
   const existing = links.find(l => l.studentEmail === studentEmail);
-  const entry = {
-    studentEmail,
-    code,
-    parentEmails: existing?.parentEmails || [],
-  };
+  const entry = { studentEmail, code, parentEmails: existing?.parentEmails || [] };
   const rest = links.filter(l => l.studentEmail !== studentEmail);
   saveParentLinks([...rest, entry]);
   return code;
 };
 
-export const linkParentToStudent = (code, parentEmail) => {
+const linkParentToStudentLocal = (code, parentEmail) => {
   const links = getParentLinks();
   const link = links.find(l => l.code === code.toUpperCase().replace(/\s/g, ''));
   if (!link) return { ok: false, error: 'Code not found' };
@@ -117,10 +134,62 @@ export const linkParentToStudent = (code, parentEmail) => {
   return { ok: true, studentEmail: link.studentEmail };
 };
 
-export const getLinkedStudentsForParent = (parentEmail) => {
+const getLinkedStudentsForParentLocal = (parentEmail) => {
   return getParentLinks().filter(l => l.parentEmails?.includes(parentEmail)).map(l => l.studentEmail);
 };
 
-export const getPairingCodeForStudent = (studentEmail) => {
+const getPairingCodeForStudentLocal = (studentEmail) => {
   return getParentLinks().find(l => l.studentEmail === studentEmail)?.code;
+};
+
+export const generatePairingCode = async (studentEmail) => {
+  const code = `${(studentEmail || '').slice(0, 4).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  if (useFirestore()) {
+    const docRef = doc(db, PARENT_LINKS_COLLECTION, toDocId(studentEmail));
+    const snap = await getDoc(docRef);
+    const existing = snap.exists() ? snap.data() : null;
+    await setDoc(docRef, {
+      studentEmail,
+      code,
+      parentEmails: existing?.parentEmails || [],
+    });
+    return code;
+  }
+  return generatePairingCodeLocal(studentEmail);
+};
+
+export const linkParentToStudent = async (code, parentEmail) => {
+  const normalizedCode = code.toUpperCase().replace(/\s/g, '');
+  if (useFirestore()) {
+    const q = query(collection(db, PARENT_LINKS_COLLECTION), where('code', '==', normalizedCode));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return { ok: false, error: 'Code not found' };
+    const docSnap = snapshot.docs[0];
+    const data = docSnap.data();
+    const parentEmails = data.parentEmails || [];
+    if (!parentEmails.includes(parentEmail)) {
+      parentEmails.push(parentEmail);
+      await setDoc(docSnap.ref, { ...data, parentEmails });
+    }
+    return { ok: true, studentEmail: data.studentEmail };
+  }
+  return linkParentToStudentLocal(code, parentEmail);
+};
+
+export const getLinkedStudentsForParent = async (parentEmail) => {
+  if (useFirestore()) {
+    const q = query(collection(db, PARENT_LINKS_COLLECTION), where('parentEmails', 'array-contains', parentEmail));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => d.data().studentEmail).filter(Boolean);
+  }
+  return getLinkedStudentsForParentLocal(parentEmail);
+};
+
+export const getPairingCodeForStudent = async (studentEmail) => {
+  if (useFirestore()) {
+    const docRef = doc(db, PARENT_LINKS_COLLECTION, toDocId(studentEmail));
+    const snap = await getDoc(docRef);
+    return snap.exists() ? snap.data().code : null;
+  }
+  return getPairingCodeForStudentLocal(studentEmail);
 };

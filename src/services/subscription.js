@@ -35,13 +35,8 @@ export async function getSubscriptionStatus(userId) {
 
 export async function initiateProCheckout(userId, email) {
   if (!API_BASE) {
-    // Demo mode: grant Pro in localStorage
-    try {
-      localStorage.setItem(DEMO_SUB_KEY, JSON.stringify({ plan: 'pro' }));
-      return { ok: true, demo: true };
-    } catch {
-      return { ok: false, error: 'Demo storage failed' };
-    }
+    // Demo mode: payment not configured — do not auto-activate
+    return { ok: false, error: 'Payment integration coming soon. Connect a payment provider to enable Pro subscriptions.' };
   }
   try {
     const res = await fetch(`${API_BASE}/subscription/checkout`, {
@@ -59,7 +54,7 @@ export async function initiateProCheckout(userId, email) {
 }
 
 export async function verifyPayment(transactionId, userId) {
-  if (!API_BASE) return { ok: true, plan: 'pro' };
+  if (!API_BASE) return { ok: false };
   try {
     const res = await fetch(`${API_BASE}/subscription/verify`, {
       method: 'POST',
@@ -71,6 +66,25 @@ export async function verifyPayment(transactionId, userId) {
     return data;
   } catch (err) {
     console.error('Verify failed:', err);
+    return { ok: false, error: err.message };
+  }
+}
+
+export async function cancelSubscription(userId) {
+  if (!API_BASE) {
+    return { ok: false, error: 'Payment integration not configured. Contact support to cancel.' };
+  }
+  try {
+    const res = await fetch(`${API_BASE}/subscription/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Cancellation failed');
+    return { ok: true, ...data };
+  } catch (err) {
+    console.error('Cancel failed:', err);
     return { ok: false, error: err.message };
   }
 }

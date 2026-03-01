@@ -66,6 +66,7 @@ import {
 } from 'lucide-react';
 import { getSubscriptionStatus, initiateProCheckout, verifyPayment, cancelSubscription } from './services/subscription';
 import * as platformData from './lib/platformData';
+import { storageGet, storageSet } from './lib/storage';
 import { computeRiskScore, getRiskBand } from './lib/riskEngine';
 import { computeForecast } from './lib/forecastEngine';
 import { checkAlertTriggers, getUnreadAlertsForUser, markAlertRead } from './lib/alerts';
@@ -148,7 +149,7 @@ const MAX_ANALYTICS_DAYS = 90;
 
 const getCompletionHistory = (userKey) => {
   try {
-    const raw = localStorage.getItem(ANALYTICS_HISTORY_KEY);
+    const raw = storageGet(ANALYTICS_HISTORY_KEY);
     const data = raw ? JSON.parse(raw) : {};
     const key = userKey || '_default';
     const comp = data[key]?.completions ?? data.completions ?? [];
@@ -159,18 +160,18 @@ const getCompletionHistory = (userKey) => {
 const logCompletion = (assignment, userKey) => {
   try {
     const key = userKey || '_default';
-    const raw = localStorage.getItem(ANALYTICS_HISTORY_KEY);
+    const raw = storageGet(ANALYTICS_HISTORY_KEY);
     const data = raw ? JSON.parse(raw) : {};
     const byKey = data[key] || { completions: [] };
     byKey.completions = [...(byKey.completions || []), { date: getDate(0), subject: assignment.subject || 'Other', title: assignment.title }].slice(-500);
     data[key] = byKey;
     if (!data._default && key !== '_default') data._default = { completions: [] };
-    localStorage.setItem(ANALYTICS_HISTORY_KEY, JSON.stringify(data));
+    storageSet(ANALYTICS_HISTORY_KEY, JSON.stringify(data));
   } catch {}
 };
 const getStoredUsers = () => {
   try {
-    const raw = localStorage.getItem(DEMO_USERS_KEY);
+    const raw = storageGet(DEMO_USERS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 };
@@ -179,7 +180,7 @@ const storeUser = (user) => {
   const existing = users.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
   if (existing >= 0) users[existing] = user;
   else users.push(user);
-  localStorage.setItem(DEMO_USERS_KEY, JSON.stringify(users));
+  storageSet(DEMO_USERS_KEY, JSON.stringify(users));
 };
 const findUserByCredentials = (email, password) => {
   const users = getStoredUsers();
@@ -742,17 +743,17 @@ const getDate = (daysOffset) => {
 const ASSIGNMENTS_STORAGE_KEY = 'hwc_assignments';
 const getStoredAssignments = (userKey) => {
   try {
-    const raw = localStorage.getItem(ASSIGNMENTS_STORAGE_KEY);
+    const raw = storageGet(ASSIGNMENTS_STORAGE_KEY);
     const data = raw ? JSON.parse(raw) : {};
     return data[userKey] || null;
   } catch { return null; }
 };
 const saveStoredAssignments = (userKey, list) => {
   try {
-    const raw = localStorage.getItem(ASSIGNMENTS_STORAGE_KEY);
+    const raw = storageGet(ASSIGNMENTS_STORAGE_KEY);
     const data = raw ? JSON.parse(raw) : {};
     data[userKey] = list;
-    localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(data));
+    storageSet(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(data));
   } catch {}
 };
 
@@ -1089,25 +1090,25 @@ const SchoolDashboard = ({ schools, search = '', onRefresh, confirm }) => {
   const filteredSchools = !search?.trim() ? schools : schools.filter(s => s.name.toLowerCase().includes(search.toLowerCase().trim()));
 
   const handleRemoveSchool = (school) => {
-    if (!confirm) { platformData.removeSchool(school.id); onRefresh?.(); return; }
-    confirm(`Remove school "${school.name}"? This cannot be undone.`, () => { platformData.removeSchool(school.id); onRefresh?.(); }, 'danger');
+    if (!confirm) { platformData.removeSchool(school.id, schools); onRefresh?.(); return; }
+    confirm(`Remove school "${school.name}"? This cannot be undone.`, () => { platformData.removeSchool(school.id, schools); onRefresh?.(); }, 'danger');
   };
 
   const handleRemoveTeacher = (school, teacherEmail) => {
-    if (!confirm) { platformData.removeTeacherFromSchool(school.id, teacherEmail); onRefresh?.(); return; }
-    confirm(`Remove this teacher from ${school.name}?`, () => { platformData.removeTeacherFromSchool(school.id, teacherEmail); onRefresh?.(); }, 'danger');
+    if (!confirm) { platformData.removeTeacherFromSchool(school.id, teacherEmail, schools); onRefresh?.(); return; }
+    confirm(`Remove this teacher from ${school.name}?`, () => { platformData.removeTeacherFromSchool(school.id, teacherEmail, schools); onRefresh?.(); }, 'danger');
   };
 
   const handleCreate = () => {
     if (!newSchoolName.trim()) return;
-    platformData.createSchool(newSchoolName.trim(), 'admin@school.com');
+    platformData.createSchool(newSchoolName.trim(), 'admin@school.com', schools);
     setNewSchoolName('');
     onRefresh?.();
   };
 
   const handleAddTeacher = () => {
     if (!addTeacherFor || !teacherForm.email?.trim()) return;
-    platformData.addTeacherToSchool(addTeacherFor.id, teacherForm.email.trim(), (teacherForm.name || teacherForm.email).trim());
+    platformData.addTeacherToSchool(addTeacherFor.id, teacherForm.email.trim(), (teacherForm.name || teacherForm.email).trim(), schools);
     setAddTeacherFor(null);
     setTeacherForm({ email: '', name: '' });
     onRefresh?.();
@@ -1115,7 +1116,7 @@ const SchoolDashboard = ({ schools, search = '', onRefresh, confirm }) => {
 
   const handleAddClass = () => {
     if (!addClassFor || !classForm.name?.trim()) return;
-    platformData.addClassToSchool(addClassFor.id, classForm.name.trim(), classForm.teacherEmail?.trim() || null);
+    platformData.addClassToSchool(addClassFor.id, classForm.name.trim(), classForm.teacherEmail?.trim() || null, schools);
     setAddClassFor(null);
     setClassForm({ name: '', teacherEmail: '' });
     onRefresh?.();
@@ -1262,7 +1263,7 @@ export default function App() {
 
   const [assignments, setAssignments] = useState(INITIAL_ASSIGNMENTS);
   const [recentHistory, setRecentHistory] = useState(HISTORY_MOCK);
-  const [hwFilter, setHwFilter] = useState(() => { try { const v = localStorage.getItem('hw_filter'); return v && Object.values(HW_FILTERS).includes(v) ? v : HW_FILTERS.DUE; } catch { return HW_FILTERS.DUE; } });
+  const [hwFilter, setHwFilter] = useState(() => { try { const v = storageGet('hw_filter'); return v && Object.values(HW_FILTERS).includes(v) ? v : HW_FILTERS.DUE; } catch { return HW_FILTERS.DUE; } });
 
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
@@ -1274,7 +1275,8 @@ export default function App() {
   const [cancelLoading, setCancelLoading] = useState(false);
 
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [filterSubject, setFilterSubject] = useState(() => { try { return localStorage.getItem('hw_subject') || 'All'; } catch { return 'All'; } });
+  const [filterSubject, setFilterSubject] = useState(() => { try { return storageGet('hw_subject') || 'All'; } catch { return 'All'; } });
+  const [subjects, setSubjects] = useState([...DEFAULT_SUBJECTS]);
 
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -1286,7 +1288,8 @@ export default function App() {
   }, [selectedAssignment?.id]);
   const [isCreateAssignmentModalOpen, setIsCreateAssignmentModalOpen] = useState(false);
   const [newAssignment, setNewAssignment] = useState({ title: '', subject: 'Math', dueDate: '', priority: 'Medium', description: '' });
-  const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem('hw_viewmode') || 'list'; } catch { return 'list'; } });
+  const [newAssignmentAttachment, setNewAssignmentAttachment] = useState({ file: null, preview: null });
+  const [viewMode, setViewMode] = useState(() => { try { return storageGet('hw_viewmode') || 'list'; } catch { return 'list'; } });
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(getDate(0));
 
@@ -1298,6 +1301,8 @@ export default function App() {
   const [forecast, setForecast] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [schoolsRefresh, setSchoolsRefresh] = useState(0);
+  const [adminSchools, setAdminSchools] = useState([]);
+  const [completionHistoryFromFirestore, setCompletionHistoryFromFirestore] = useState([]);
   const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
   const [isAdminCsvImportOpen, setIsAdminCsvImportOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -1308,18 +1313,20 @@ export default function App() {
   const [hwDetailDrawer, setHwDetailDrawer] = useState(null);
   const [statsRange, setStatsRange] = useState('7');
   const [statsPreviewOpen, setStatsPreviewOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem('hw_sidebar_collapsed') === 'true'; } catch { return false; } });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return storageGet('hw_sidebar_collapsed') === 'true'; } catch { return false; } });
   const [isNotifPanelOpen, setIsNotifPanelOpen] = useState(false);
   const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
   const [isGoogleClassroomImporting, setIsGoogleClassroomImporting] = useState(false);
   const [integrationMessage, setIntegrationMessage] = useState(null);
   const [csvImportText, setCsvImportText] = useState('');
+  const [newSubjectInput, setNewSubjectInput] = useState('');
   const [localTime, setLocalTime] = useState('');
   const [sessionTime, setSessionTime] = useState('00:00:00');
   const sessionStartRef = useRef(Date.now());
 
   const profileImageInputRef = useRef(null);
   const assignmentFileInputRef = useRef(null);
+  const createAssignFileInputRef = useRef(null);
   const csvFileInputRef = useRef(null);
 
   useEffect(() => {
@@ -1336,6 +1343,35 @@ export default function App() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (appUser?.role !== ROLES.ADMIN) return;
+    let cancelled = false;
+    (async () => {
+      const fromFirestore = await platformData.getSchoolsFromFirestore();
+      if (cancelled) return;
+      setAdminSchools(Array.isArray(fromFirestore) ? fromFirestore : platformData.getSchools());
+    })();
+    return () => { cancelled = true; };
+  }, [appUser?.role, schoolsRefresh]);
+
+  const firebaseUserId = auth?.currentUser?.uid;
+  useEffect(() => {
+    if (!firebaseUserId || !appUser || appUser.role === ROLES.PARENT) return;
+    let cancelled = false;
+    (async () => {
+      const [profile, assignments, completions] = await Promise.all([
+        platformData.getProfile(firebaseUserId),
+        platformData.getAssignments(firebaseUserId),
+        platformData.getCompletionHistoryFromFirestore(firebaseUserId),
+      ]);
+      if (cancelled) return;
+      if (profile && typeof profile === 'object') setProfileData(prev => ({ ...prev, ...profile }));
+      if (assignments !== null && Array.isArray(assignments)) setAssignments(assignments);
+      if (Array.isArray(completions)) setCompletionHistoryFromFirestore(completions);
+    })();
+    return () => { cancelled = true; };
+  }, [firebaseUserId, appUser?.role]);
 
   const getBackgroundClass = () => {
     switch(activeTab) {
@@ -1359,8 +1395,9 @@ export default function App() {
       saveStoredAssignments(selectedChildEmail, assignments);
     } else if (currentUserKey && appUser?.role !== ROLES.PARENT) {
       saveStoredAssignments(currentUserKey, assignments);
+      if (firebaseUserId) platformData.saveAssignments(firebaseUserId, assignments).catch(() => {});
     }
-  }, [assignments, currentUserKey, appUser?.role, selectedChildEmail]);
+  }, [assignments, currentUserKey, appUser?.role, selectedChildEmail, firebaseUserId]);
 
   useEffect(() => {
     if (appUser?.role === ROLES.PARENT) {
@@ -1377,36 +1414,52 @@ export default function App() {
     const userKey = appUser?.role === ROLES.PARENT ? selectedChildEmail : currentUserKey;
     if (!userKey) return;
     const as = appUser?.role === ROLES.PARENT ? getStoredAssignments(selectedChildEmail) || [] : assignments;
-    const completions = getCompletionHistory(userKey);
+    const completions = firebaseUserId && appUser?.role !== ROLES.PARENT
+      ? completionHistoryFromFirestore
+      : getCompletionHistory(userKey);
     const rec = getActiveRecoveryForStudent(userKey);
-    const hist = platformData.getRiskHistory();
-    const prevEntry = hist.filter(h => h.userKey === userKey && h.date !== getDate(0)).sort((a, b) => b.date.localeCompare(a.date))[0];
-    const prevRisk = prevEntry?.score;
-    const streak = (() => {
-      let s = 0;
-      for (let i = 0; i < 365; i++) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const ds = d.toISOString().split('T')[0];
-        if (completions.some(c => c.date === ds)) s++;
-        else break;
+    const runRiskCalc = (hist, prevRisk) => {
+      const streak = (() => {
+        let s = 0;
+        for (let i = 0; i < 365; i++) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const ds = d.toISOString().split('T')[0];
+          if (completions.some(c => c.date === ds)) s++;
+          else break;
+        }
+        return s;
+      })();
+      const score = computeRiskScore({
+        assignments: as,
+        completionHistory: completions,
+        streak,
+        recoveryTarget: rec ? { targetCompletion: rec.requiredCompletions, achieved: rec.achievedCompletions } : null,
+      });
+      const fore = computeForecast(as, completions);
+      setRiskScore(score);
+      setForecast(fore);
+      if (firebaseUserId && appUser?.role !== ROLES.PARENT) {
+        const rest = (hist || []).filter(h => h.date !== getDate(0));
+        platformData.saveRiskHistoryToFirestore(firebaseUserId, [...rest, { userKey, score, date: getDate(0) }]).catch(() => {});
+      } else {
+        const rest = hist.filter(h => h.userKey !== userKey || h.date !== getDate(0));
+        platformData.saveRiskHistory([...rest, { userKey, score, date: getDate(0) }]);
       }
-      return s;
-    })();
-    const score = computeRiskScore({
-      assignments: as,
-      completionHistory: completions,
-      streak,
-      recoveryTarget: rec ? { targetCompletion: rec.requiredCompletions, achieved: rec.achievedCompletions } : null,
-    });
-    const fore = computeForecast(as, completions);
-    setRiskScore(score);
-    setForecast(fore);
-    const rest = hist.filter(h => h.userKey !== userKey || h.date !== getDate(0));
-    platformData.saveRiskHistory([...rest, { userKey, score, date: getDate(0) }]);
-    checkAlertTriggers({ studentEmail: userKey, currentRisk: score, previousRisk: prevRisk, assignments: as, gradeSlope: fore?.trendDirection === 'Downward' ? -15 : null });
-    setAlerts(getUnreadAlertsForUser(profileData.email, linkedStudents, appUser?.role));
-  }, [assignments, selectedChildEmail, appUser?.role, currentUserKey]);
+      checkAlertTriggers({ studentEmail: userKey, currentRisk: score, previousRisk: prevRisk ?? null, assignments: as, gradeSlope: fore?.trendDirection === 'Downward' ? -15 : null });
+      setAlerts(getUnreadAlertsForUser(profileData.email, linkedStudents, appUser?.role));
+    };
+    if (firebaseUserId && appUser?.role !== ROLES.PARENT) {
+      platformData.getRiskHistoryFromFirestore(firebaseUserId).then((hist) => {
+        const prevEntry = (hist || []).filter(h => h.date !== getDate(0)).sort((a, b) => b.date.localeCompare(a.date))[0];
+        runRiskCalc(hist || [], prevEntry?.score);
+      }).catch(() => runRiskCalc([], null));
+    } else {
+      const hist = platformData.getRiskHistory();
+      const prevEntry = hist.filter(h => h.userKey === userKey && h.date !== getDate(0)).sort((a, b) => b.date.localeCompare(a.date))[0];
+      runRiskCalc(hist, prevEntry?.score);
+    }
+  }, [assignments, selectedChildEmail, appUser?.role, currentUserKey, completionHistoryFromFirestore, firebaseUserId]);
 
   useEffect(() => {
     if (!appUser) return;
@@ -1466,21 +1519,26 @@ export default function App() {
   useEffect(() => {
     if (!appUser) return;
     const key = viewingStudentKey || currentUserKey;
-    const completions = getCompletionHistory(key);
+    const completions = getEffectiveCompletions(key);
     if (completions.length === 0) {
       const as = appUser?.role === ROLES.PARENT ? getStoredAssignments(selectedChildEmail) || [] : assignments;
       const completed = as.filter(a => a.status === 'Completed' || a.status === 'Submitted');
       if (completed.length > 0 && key) {
         const toSeed = completed.map(a => ({ date: getDate(0), subject: a.subject || 'Other', title: a.title }));
-        try {
-          const raw = localStorage.getItem(ANALYTICS_HISTORY_KEY);
-          const data = raw ? JSON.parse(raw) : {};
-          data[key] = { completions: toSeed };
-          localStorage.setItem(ANALYTICS_HISTORY_KEY, JSON.stringify(data));
-        } catch {}
+        if (firebaseUserId && appUser?.role !== ROLES.PARENT) {
+          setCompletionHistoryFromFirestore(toSeed);
+          platformData.saveCompletionHistoryToFirestore(firebaseUserId, toSeed).catch(() => {});
+        } else {
+          try {
+            const raw = storageGet(ANALYTICS_HISTORY_KEY);
+            const data = raw ? JSON.parse(raw) : {};
+            data[key] = { completions: toSeed };
+            storageSet(ANALYTICS_HISTORY_KEY, JSON.stringify(data));
+          } catch {}
+        }
       }
     }
-  }, [appUser?.name, viewingStudentKey, selectedChildEmail]);
+  }, [appUser?.name, viewingStudentKey, selectedChildEmail, firebaseUserId, appUser?.role, assignments, completionHistoryFromFirestore]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1553,7 +1611,7 @@ export default function App() {
     setAppUser(newAppUser);
     const email = userData.email || '';
     try {
-      const stored = localStorage.getItem(PROFILE_STORAGE_KEY);
+      const stored = storageGet(PROFILE_STORAGE_KEY);
       const parsed = stored ? JSON.parse(stored) : null;
       setProfileData({
         name: parsed?.name ?? newAppUser.name,
@@ -1589,8 +1647,9 @@ export default function App() {
     if (!profileData.name?.trim()) return;
     setAppUser(prev => prev ? { ...prev, name: profileData.name.trim() } : null);
     try {
-      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileData));
+      storageSet(PROFILE_STORAGE_KEY, JSON.stringify(profileData));
     } catch {}
+    if (firebaseUserId) platformData.saveProfile(firebaseUserId, profileData).catch(() => {});
     setIsProfileSettingsOpen(false);
   };
 
@@ -1605,6 +1664,18 @@ export default function App() {
   const addToHistory = (title, type = 'info') => {
     setRecentHistory(prev => [{ id: Date.now(), title, type, time: "Just now" }, ...prev].slice(0, 5));
   };
+
+  const handleLogCompletion = (assignment, userKey) => {
+    if (firebaseUserId && appUser?.role !== ROLES.PARENT) {
+      platformData.logCompletionToFirestore(firebaseUserId, assignment).catch(() => {});
+      setCompletionHistoryFromFirestore(prev => [...prev, { date: getDate(0), subject: assignment.subject || 'Other', title: assignment.title }].slice(-500));
+    } else {
+      logCompletion(assignment, userKey);
+    }
+  };
+
+  const getEffectiveCompletions = (userKey) =>
+    firebaseUserId && appUser?.role !== ROLES.PARENT ? completionHistoryFromFirestore : getCompletionHistory(userKey);
 
   const showToast = (message, type = 'success') => {
     const id = Date.now();
@@ -1636,22 +1707,53 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  useEffect(() => { try { localStorage.setItem('hw_sidebar_collapsed', String(sidebarCollapsed)); } catch {} }, [sidebarCollapsed]);
-  useEffect(() => { try { localStorage.setItem('hw_filter', hwFilter); } catch {} }, [hwFilter]);
-  useEffect(() => { try { localStorage.setItem('hw_subject', filterSubject); } catch {} }, [filterSubject]);
-  useEffect(() => { try { localStorage.setItem('hw_viewmode', viewMode); } catch {} }, [viewMode]);
+  useEffect(() => { try { storageSet('hw_sidebar_collapsed', String(sidebarCollapsed)); } catch {} }, [sidebarCollapsed]);
+  useEffect(() => { try { storageSet('hw_filter', hwFilter); } catch {} }, [hwFilter]);
+  useEffect(() => { try { storageSet('hw_subject', filterSubject); } catch {} }, [filterSubject]);
+
+  const subjectsUserId = (appUser?.role === ROLES.STUDENT || appUser?.role === ROLES.TEACHER) ? (auth?.currentUser?.uid ?? profileData.email ?? appUser?.name) : null;
+  const [subjectsInitialized, setSubjectsInitialized] = useState(false);
+  useEffect(() => {
+    if (!subjectsUserId) { setSubjectsInitialized(false); return; }
+    setSubjectsInitialized(false);
+    platformData.getSubjects(subjectsUserId).then((loaded) => {
+      if (loaded && loaded.length > 0) setSubjects(loaded);
+      else setSubjects([...DEFAULT_SUBJECTS]);
+      setSubjectsInitialized(true);
+    });
+  }, [subjectsUserId]);
+  useEffect(() => {
+    if (!subjectsUserId || !subjectsInitialized) return;
+    platformData.saveSubjects(subjectsUserId, subjects);
+  }, [subjectsUserId, subjectsInitialized, subjects]);
+  useEffect(() => { if (subjects.length > 0 && !subjects.includes(newAssignment.subject)) setNewAssignment(prev => ({ ...prev, subject: subjects[0] })); }, [subjects]);
+  useEffect(() => { try { storageSet('hw_viewmode', viewMode); } catch {} }, [viewMode]);
+
+  const handleCreateAssignFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { addToHistory('File too large (Max 20MB)', 'error'); return; }
+    const reader = new FileReader();
+    reader.onloadend = () => setNewAssignmentAttachment({ file, preview: reader.result });
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   const handleCreateAssignment = (e) => {
     e.preventDefault();
     if (!newAssignment.title) return;
     confirm(`Add "${newAssignment.title}" to your homework?`, () => {
       const effectiveDueDate = newAssignment.dueDate || getDate(0);
-      const assignment = { id: Date.now(), category: 'Homework', status: 'Pending', progress: 0, ...newAssignment, dueDate: effectiveDueDate };
+      const base = { id: Date.now(), category: 'Homework', status: 'Pending', progress: 0, ...newAssignment, dueDate: effectiveDueDate };
+      const assignment = newAssignmentAttachment.file
+        ? { ...base, status: 'Submitted', submittedFile: newAssignmentAttachment.file.name, submittedFileType: newAssignmentAttachment.file.type || 'application/octet-stream', submittedPreview: newAssignmentAttachment.preview, submittedAt: getDate(0) }
+        : base;
       setAssignments(prev => [assignment, ...prev]);
       setIsCreateAssignmentModalOpen(false);
       showToast(copy.toastAdded);
       addToHistory(`Submitted: ${newAssignment.title}`, 'success');
       setNewAssignment({ title: '', subject: 'Math', dueDate: '', priority: 'Medium', description: '' });
+      setNewAssignmentAttachment({ file: null, preview: null });
     });
   };
 
@@ -1747,7 +1849,7 @@ export default function App() {
   }, [assignments]);
 
   const analyticsData = useMemo(() => {
-    const allCompletions = getCompletionHistory(viewingStudentKey || currentUserKey);
+    const allCompletions = getEffectiveCompletions(viewingStudentKey || currentUserKey);
     const today = getDate(0);
 
     const rangeDays = statsRange === 'term' ? 90 : statsRange === '30' ? 30 : 7;
@@ -1772,7 +1874,7 @@ export default function App() {
     })();
     const maxCount = Math.max(1, ...byDay.map(x => x.count));
 
-    const subjectCounts = DEFAULT_SUBJECTS.reduce((acc, s) => {
+    const subjectCounts = subjects.reduce((acc, s) => {
       acc[s] = completions.filter(c => c.subject === s).length;
       return acc;
     }, {});
@@ -1818,14 +1920,14 @@ export default function App() {
       return sorted[0] && sorted[0][1] > 0 ? sorted[0][0] : null;
     })();
     const avgPerDay = completions.length > 0 ? (completions.length / rangeDays).toFixed(1) : '0';
-    const subjectCompletionRates = DEFAULT_SUBJECTS.reduce((acc, s) => {
+    const subjectCompletionRates = subjects.reduce((acc, s) => {
       const subTotal = rangeAssignments.filter(a => a.subject === s).length;
       const subDone = rangeAssignments.filter(a => a.subject === s && (a.status === 'Completed' || a.status === 'Submitted')).length;
       acc[s] = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : null;
       return acc;
     }, {});
     return { byDay, maxCount, subjectCounts, totalBySubject, maxSubj, thisWeek, lastWeek, streak, completionRate, done, total, overdue, onTimeRate, weekDiff, bestDay, topSubject, avgPerDay, subjectCompletionRates, rangeDays };
-  }, [assignments, viewingStudentKey, currentUserKey, statsRange]);
+  }, [assignments, viewingStudentKey, currentUserKey, statsRange, subjects, completionHistoryFromFirestore, firebaseUserId, appUser?.role]);
 
   const homeworkForSelectedDate = useMemo(() => {
     return assignments.filter(a => a.dueDate === selectedDate);
@@ -1852,7 +1954,7 @@ export default function App() {
     const today = getDate(0);
     const overdue = assignments.filter(a => a.status !== 'Completed' && a.status !== 'Submitted' && a.dueDate < today);
     if (overdue.length > 0) reasons.push(`${overdue.length} overdue task${overdue.length > 1 ? 's' : ''}`);
-    const completions = getCompletionHistory(viewingStudentKey || currentUserKey);
+    const completions = getEffectiveCompletions(viewingStudentKey || currentUserKey);
     let lateStreak = 0;
     for (let i = 1; i <= 7; i++) {
       const d = new Date(); d.setDate(d.getDate() - i);
@@ -1863,7 +1965,7 @@ export default function App() {
     if (lateStreak >= 2) reasons.push(`${lateStreak}-day inactivity streak`);
     if (studyStreak < 3) reasons.push('low engagement streak');
     return reasons.slice(0, 3);
-  }, [assignments, viewingStudentKey, currentUserKey, studyStreak]);
+  }, [assignments, viewingStudentKey, currentUserKey, studyStreak, completionHistoryFromFirestore, firebaseUserId, appUser?.role]);
 
   const actionCTA = useMemo(() => {
     if (stats.overdue > 0) {
@@ -1903,7 +2005,6 @@ export default function App() {
   if (!appUser) return <AuthScreen onLogin={handleB2CLogin} isLoading={authLoading} useFirebase={!!auth} />;
 
   if (appUser.role === ROLES.ADMIN) {
-    const adminSchools = platformData.getSchools();
     const totalTeachers = adminSchools.reduce((sum, s) => sum + (s.teachers?.length || 0), 0);
     const totalClasses = adminSchools.reduce((sum, s) => sum + (s.classes?.length || 0), 0);
     const adminNavItems = [
@@ -2208,21 +2309,24 @@ export default function App() {
                 if (!r.rows?.length) { showToast('No rows to import', 'info'); return; }
                 confirm(`Import ${r.rows.length} row${r.rows.length > 1 ? 's' : ''}? This will create schools and add teachers/classes.`, () => {
                   let created = 0, teachers = 0, classes = 0;
+                  let schools = [...adminSchools];
                   for (const row of r.rows) {
-                    const schools = platformData.getSchools();
                     let school = schools.find(s => s.name.toLowerCase() === row.schoolName.toLowerCase());
                     if (!school) {
-                      platformData.createSchool(row.schoolName, 'admin@school.com');
+                      platformData.createSchool(row.schoolName, 'admin@school.com', schools);
                       created++;
-                      school = platformData.getSchools().find(s => s.name.toLowerCase() === row.schoolName.toLowerCase());
+                      schools = platformData.getSchools();
+                      school = schools.find(s => s.name.toLowerCase() === row.schoolName.toLowerCase());
                     }
                     if (school && row.teacherEmail) {
-                      platformData.addTeacherToSchool(school.id, row.teacherEmail, row.teacherName || row.teacherEmail);
+                      platformData.addTeacherToSchool(school.id, row.teacherEmail, row.teacherName || row.teacherEmail, schools);
                       teachers++;
+                      schools = platformData.getSchools();
                     }
                     if (school && row.className) {
-                      platformData.addClassToSchool(school.id, row.className, row.teacherEmail || (school.teachers?.[0]?.email));
+                      platformData.addClassToSchool(school.id, row.className, row.teacherEmail || (school.teachers?.[0]?.email), schools);
                       classes++;
+                      schools = platformData.getSchools();
                     }
                   }
                   setSchoolsRefresh(Date.now());
@@ -2669,7 +2773,7 @@ export default function App() {
                     <div className="h-4 w-px bg-slate-200 hidden sm:block" />
                     <div className="flex gap-1 flex-wrap">
                       <button onClick={() => setFilterSubject('All')} className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-colors ${filterSubject === 'All' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-white'}`}>All</button>
-                      {DEFAULT_SUBJECTS.map(sub => (
+                      {subjects.map(sub => (
                         <button key={sub} onClick={() => setFilterSubject(sub)} className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-colors ${filterSubject === sub ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-white'}`}>{sub}</button>
                       ))}
                     </div>
@@ -2677,7 +2781,7 @@ export default function App() {
                       <>
                         <div className="h-4 w-px bg-slate-200" />
                         <span className="text-[10px] font-bold text-violet-600">{selectedHwIds.size} {copy.selectedCount}</span>
-                        <button onClick={() => confirm(`Mark ${selectedHwIds.size} task${selectedHwIds.size > 1 ? 's' : ''} as complete?`, () => { const now = getDate(0); const ids = [...selectedHwIds]; setAssignments(prev => prev.map(a => ids.includes(a.id) ? { ...a, status: 'Completed', progress: 100, submittedAt: now } : a)); ids.forEach(id => { const a = assignments.find(x => x.id === id); if (a) { logCompletion(a, viewingStudentKey); } }); setSelectedHwIds(new Set()); showToast(copy.toastMarkedDone); addToHistory(`Completed ${ids.length} tasks`, 'success'); })} className="px-2.5 py-1 bg-emerald-500 text-white rounded-md text-[10px] font-bold">{copy.markDone}</button>
+                        <button onClick={() => confirm(`Mark ${selectedHwIds.size} task${selectedHwIds.size > 1 ? 's' : ''} as complete?`, () => { const now = getDate(0); const ids = [...selectedHwIds]; setAssignments(prev => prev.map(a => ids.includes(a.id) ? { ...a, status: 'Completed', progress: 100, submittedAt: now } : a)); ids.forEach(id => { const a = assignments.find(x => x.id === id); if (a) { handleLogCompletion(a, viewingStudentKey); } }); setSelectedHwIds(new Set()); showToast(copy.toastMarkedDone); addToHistory(`Completed ${ids.length} tasks`, 'success'); })} className="px-2.5 py-1 bg-emerald-500 text-white rounded-md text-[10px] font-bold">{copy.markDone}</button>
                         <button onClick={() => confirm(`Export ${selectedHwIds.size} task${selectedHwIds.size > 1 ? 's' : ''} as CSV?`, () => { const data = filteredHw.filter(a => selectedHwIds.has(a.id)).map(a => `${a.subject},${a.title},${a.dueDate},${a.status},${a.priority}`); const csv = 'Subject,Task,Due Date,Status,Priority\n' + data.join('\n'); const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'homework-export.csv'; link.click(); URL.revokeObjectURL(url); showToast(copy.toastExported); })} className="px-2.5 py-1 bg-slate-700 text-white rounded-md text-[10px] font-bold flex items-center gap-1"><Download size={10} /> {copy.exportBtn}</button>
                       </>
                     )}
@@ -2765,7 +2869,7 @@ export default function App() {
                       {/* Actions */}
                       <div className="space-y-2 pt-2 border-t border-slate-100">
                         {!isReadOnly && hwDetailDrawer.status !== 'Completed' && hwDetailDrawer.status !== 'Submitted' && (
-                          <button onClick={() => confirm(`Mark "${hwDetailDrawer.title}" as complete?`, () => { const now = getDate(0); setAssignments(prev => prev.map(x => x.id === hwDetailDrawer.id ? { ...x, status: 'Completed', progress: 100, submittedAt: now } : x)); logCompletion(hwDetailDrawer, viewingStudentKey); updateRecoveryProgress(viewingStudentKey, 1); showToast(copy.toastMarkedDone); addToHistory(`Completed: ${hwDetailDrawer.title}`, 'success'); setHwDetailDrawer(null); })} className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-xl text-sm">{copy.completeBtn}</button>
+                          <button onClick={() => confirm(`Mark "${hwDetailDrawer.title}" as complete?`, () => { const now = getDate(0); setAssignments(prev => prev.map(x => x.id === hwDetailDrawer.id ? { ...x, status: 'Completed', progress: 100, submittedAt: now } : x)); handleLogCompletion(hwDetailDrawer, viewingStudentKey); updateRecoveryProgress(viewingStudentKey, 1); showToast(copy.toastMarkedDone); addToHistory(`Completed: ${hwDetailDrawer.title}`, 'success'); setHwDetailDrawer(null); })} className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-xl text-sm">{copy.completeBtn}</button>
                         )}
                         {!isReadOnly && <button onClick={() => { setSelectedAssignment(hwDetailDrawer); setIsUploadModalOpen(true); }} className="w-full py-2 text-violet-600 font-bold rounded-xl text-xs hover:bg-violet-50 transition-colors">{copy.openDetails}</button>}
                         {!isReadOnly && <button onClick={() => handleDeleteTask(hwDetailDrawer.id)} className="w-full py-2 text-rose-500 font-bold rounded-xl text-xs hover:bg-rose-50 transition-colors flex items-center justify-center gap-1"><Trash2 size={12} /> {copy.removeBtn}</button>}
@@ -3049,7 +3153,7 @@ export default function App() {
               <div className="bg-white p-5 rounded-xl border border-slate-100">
                 <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><PieChart size={16} className="text-violet-500" /> {copy.statBySubject}</h3>
                 <div className="space-y-2.5">
-                  {DEFAULT_SUBJECTS.map(sub => {
+                  {subjects.map(sub => {
                     const n = analyticsData.subjectCounts[sub] || 0;
                     const pct = analyticsData.totalBySubject > 0 ? Math.round((n / analyticsData.totalBySubject) * 100) : 0;
                     return (
@@ -3070,7 +3174,7 @@ export default function App() {
               <div className="bg-white p-5 rounded-xl border border-slate-100">
                 <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> {copy.statSubjectHealth}</h3>
                 <div className="space-y-2">
-                  {DEFAULT_SUBJECTS.filter(s => analyticsData.subjectCompletionRates[s] !== null).map(sub => {
+                  {subjects.filter(s => analyticsData.subjectCompletionRates[s] !== null).map(sub => {
                     const rate = analyticsData.subjectCompletionRates[sub];
                     return (
                       <div key={sub} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
@@ -3082,7 +3186,7 @@ export default function App() {
                       </div>
                     );
                   })}
-                  {DEFAULT_SUBJECTS.filter(s => analyticsData.subjectCompletionRates[s] !== null).length === 0 && (
+                  {subjects.filter(s => analyticsData.subjectCompletionRates[s] !== null).length === 0 && (
                     <p className="text-xs text-slate-400 text-center py-4">{copy.statNoData}</p>
                   )}
                 </div>
@@ -3121,7 +3225,7 @@ export default function App() {
         )}
 
         {activeTab === TABS.SCHOOL && appUser?.role === ROLES.ADMIN && (
-          <SchoolDashboard schools={platformData.getSchools()} key={schoolsRefresh} onRefresh={() => setSchoolsRefresh(Date.now())} confirm={confirm} />
+          <SchoolDashboard schools={adminSchools} search={dashboardSearch} key={schoolsRefresh} onRefresh={() => setSchoolsRefresh(Date.now())} confirm={confirm} />
         )}
 
         {activeTab === TABS.PAYMENTS && (
@@ -3247,6 +3351,26 @@ export default function App() {
               <div><h3 className="font-bold text-slate-800 text-lg">{copy.profileTitle}</h3><p className="text-xs text-slate-500 font-medium">{copy.profileDesc}</p></div>
               <div className="ml-auto text-violet-300"><ChevronRight size={24} /></div>
             </div>
+            {(appUser?.role === ROLES.STUDENT || appUser?.role === ROLES.TEACHER) && (
+              <div className="bg-white p-5 rounded-xl border border-slate-100">
+                <h3 className="font-bold text-slate-800 text-lg mb-1 flex items-center gap-2"><BookOpen size={18} className="text-violet-500" /> Subjects</h3>
+                <p className="text-xs text-slate-500 mb-4">Add or remove subjects for homework and filters</p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {subjects.map(sub => (
+                    <span key={sub} className="inline-flex items-center gap-1.5 px-3 py-2 bg-violet-50 text-violet-700 rounded-xl text-sm font-bold">
+                      {sub}
+                      <button type="button" onClick={() => { if (subjects.length <= 1) { showToast('Keep at least one subject'); return; } setSubjects(prev => prev.filter(s => s !== sub)); }} className="p-0.5 rounded hover:bg-violet-200 text-violet-600 transition-colors" title="Remove subject"><X size={14} /></button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input type="text" value={newSubjectInput} onChange={(e) => setNewSubjectInput(e.target.value)} placeholder="New subject name" className="flex-1 bg-slate-50 p-3 rounded-xl font-medium text-slate-700 border border-slate-100 focus:ring-2 focus:ring-violet-300 outline-none placeholder:text-slate-400" onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), newSubjectInput.trim() && !subjects.includes(newSubjectInput.trim()) && (setSubjects(prev => [...prev, newSubjectInput.trim()]), setNewSubjectInput('')))}
+                  />
+                  <button type="button" onClick={() => { const v = newSubjectInput.trim(); if (v && !subjects.includes(v)) { setSubjects(prev => [...prev, v]); setNewSubjectInput(''); showToast(`Added ${v}`); } }} className="px-4 py-3 bg-violet-500 text-white font-bold rounded-xl text-sm hover:bg-violet-600 transition-colors">Add</button>
+                  <button type="button" onClick={() => { setSubjects([...DEFAULT_SUBJECTS]); showToast('Reset to default subjects'); }} className="px-4 py-3 text-slate-500 font-bold rounded-xl text-sm hover:bg-slate-100 transition-colors">Reset</button>
+                </div>
+              </div>
+            )}
             {appUser.role === ROLES.STUDENT && pairingCode && (
               <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <h3 className="font-bold text-slate-800 text-lg mb-1">Pairing code</h3>
@@ -3383,17 +3507,32 @@ export default function App() {
 
       {isCreateAssignmentModalOpen && !isReadOnly && (
         <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4">
-          <div className="bg-white w-full sm:max-w-md rounded-t-[32px] sm:rounded-[32px] p-8 shadow-2xl animate-in slide-in-from-bottom max-h-[90vh] overflow-y-auto">
+          <div className="bg-white w-full sm:max-w-md rounded-t-[32px] sm:rounded-[32px] p-8 shadow-2xl animate-in slide-in-from-bottom max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-black text-slate-800">{copy.addHomeworkModal}</h2>
-              <button onClick={() => setIsCreateAssignmentModalOpen(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 transition-colors"><X size={20} /></button>
+              <button onClick={() => { setIsCreateAssignmentModalOpen(false); setNewAssignmentAttachment({ file: null, preview: null }); }} className="p-2 bg-slate-100 rounded-full text-slate-500 transition-colors"><X size={20} /></button>
             </div>
             <form onSubmit={handleCreateAssignment} className="space-y-6">
               <div><label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">{copy.assignmentLabel}</label><input type="text" required value={newAssignment.title} onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })} placeholder={copy.assignmentPlaceholder} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-slate-700 outline-none" /></div>
-              <div><label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">{copy.colSubject}</label><select value={newAssignment.subject} onChange={(e) => setNewAssignment({ ...newAssignment, subject: e.target.value })} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-slate-700 outline-none">{DEFAULT_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div><label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">{copy.colSubject}</label><select value={newAssignment.subject} onChange={(e) => setNewAssignment({ ...newAssignment, subject: e.target.value })} className="w-full bg-slate-50 p-4 rounded-2xl font-bold text-slate-700 outline-none">{subjects.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
               <div><label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">{copy.notesLabel}</label><textarea value={newAssignment.description} onChange={(e) => setNewAssignment({ ...newAssignment, description: e.target.value })} placeholder={copy.notesPlaceholder} className="w-full bg-slate-50 p-4 rounded-2xl font-medium text-slate-700 outline-none h-24 placeholder:text-slate-400" /></div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">{copy.uploadDoc || 'Upload document'}</label>
+                <input type="file" ref={createAssignFileInputRef} style={{ display: 'none' }} accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xls,.xlsx,.ppt,.pptx" onChange={handleCreateAssignFileChange} />
+                {newAssignmentAttachment.file ? (
+                  <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 p-3 rounded-xl">
+                    <Upload size={16} className="text-emerald-600 shrink-0" />
+                    <span className="text-sm font-medium text-slate-700 truncate flex-1">{newAssignmentAttachment.file.name}</span>
+                    <button type="button" onClick={() => setNewAssignmentAttachment({ file: null, preview: null })} className="text-xs font-bold text-slate-500 hover:text-rose-500">Remove</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => createAssignFileInputRef.current?.click()} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl font-medium text-slate-500 text-sm flex items-center justify-center gap-2 hover:border-violet-300 hover:bg-violet-50/50 transition-colors">
+                    <Upload size={16} /> {copy.uploadDocMax || 'Upload document (max 20MB)'}
+                  </button>
+                )}
+              </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setIsCreateAssignmentModalOpen(false)} className="flex-1 py-4 text-slate-500 font-bold rounded-2xl">{copy.cancelBtn}</button>
+                <button type="button" onClick={() => { setIsCreateAssignmentModalOpen(false); setNewAssignmentAttachment({ file: null, preview: null }); }} className="flex-1 py-4 text-slate-500 font-bold rounded-2xl">{copy.cancelBtn}</button>
                 <button type="submit" className="flex-[2] py-4 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-bold rounded-2xl">{copy.addBtn}</button>
               </div>
             </form>
@@ -3550,7 +3689,7 @@ export default function App() {
             {!isReadOnly && (
               <div className="px-6 pb-6 pt-2 border-t border-slate-100 flex items-center gap-3">
                 {!isDone && (
-                  <button onClick={() => confirm(`Mark "${selectedAssignment.title}" as complete?`, () => { const now = getDate(0); setAssignments(prev => prev.map(x => x.id === selectedAssignment.id ? { ...x, status: 'Completed', submittedAt: now } : x)); logCompletion(selectedAssignment, viewingStudentKey); updateRecoveryProgress(viewingStudentKey, 1); setIsUploadModalOpen(false); addToHistory(`Completed: ${selectedAssignment.title}`, 'success'); })} className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-xl text-sm shadow-md hover:shadow-lg transition-all">{copy.completeBtn}</button>
+                  <button onClick={() => confirm(`Mark "${selectedAssignment.title}" as complete?`, () => { const now = getDate(0); setAssignments(prev => prev.map(x => x.id === selectedAssignment.id ? { ...x, status: 'Completed', submittedAt: now } : x)); handleLogCompletion(selectedAssignment, viewingStudentKey); updateRecoveryProgress(viewingStudentKey, 1); setIsUploadModalOpen(false); addToHistory(`Completed: ${selectedAssignment.title}`, 'success'); })} className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-xl text-sm shadow-md hover:shadow-lg transition-all">{copy.completeBtn}</button>
                 )}
                 <button onClick={() => handleDeleteTask(selectedAssignment.id)} className="py-3 px-4 text-rose-500 font-bold rounded-xl text-sm hover:bg-rose-50 transition-colors flex items-center gap-1.5"><Trash2 size={14} /> {copy.removeBtn}</button>
               </div>
@@ -3610,7 +3749,7 @@ export default function App() {
                 <div>
                   <label className="text-xs font-bold text-slate-400 mb-2 block uppercase">Favorite subject</label>
                   <div className="flex flex-wrap gap-2">
-                    {DEFAULT_SUBJECTS.map(sub => (
+                    {subjects.map(sub => (
                       <button key={sub} type="button" onClick={() => setProfileData(p => ({ ...p, favoriteSubject: p.favoriteSubject === sub ? '' : sub }))} className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors border ${profileData.favoriteSubject === sub ? 'bg-violet-500 text-white border-violet-500' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{sub}</button>
                     ))}
                   </div>
@@ -3648,7 +3787,7 @@ export default function App() {
           <div className="bg-white w-full sm:max-w-md h-auto rounded-t-[32px] sm:rounded-[32px] p-6 flex flex-col shadow-2xl duration-300 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-black text-slate-800">{copy.filterBy}</h2><button onClick={() => setIsFilterModalOpen(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20} /></button></div>
             <div className="space-y-6 mb-6">
-              <div><label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 block">{copy.colSubject}</label><div className="flex flex-wrap gap-2"><button onClick={() => setFilterSubject('All')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors border ${filterSubject === 'All' ? 'bg-violet-500 text-white border-violet-500' : 'bg-white text-slate-600 border-slate-200'}`}>All</button>{DEFAULT_SUBJECTS.map(sub => (<button key={sub} onClick={() => setFilterSubject(sub)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors border ${filterSubject === sub ? 'bg-violet-500 text-white border-violet-500' : 'bg-white text-slate-600 border-slate-200'}`}>{sub}</button>))}</div></div>
+              <div><label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 block">{copy.colSubject}</label><div className="flex flex-wrap gap-2"><button onClick={() => setFilterSubject('All')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors border ${filterSubject === 'All' ? 'bg-violet-500 text-white border-violet-500' : 'bg-white text-slate-600 border-slate-200'}`}>All</button>{subjects.map(sub => (<button key={sub} onClick={() => setFilterSubject(sub)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors border ${filterSubject === sub ? 'bg-violet-500 text-white border-violet-500' : 'bg-white text-slate-600 border-slate-200'}`}>{sub}</button>))}</div></div>
             </div>
             <div className="flex gap-3"><button onClick={() => setFilterSubject('All')} className="flex-1 py-3 font-bold text-slate-500">Reset</button><button onClick={() => setIsFilterModalOpen(false)} className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl">Apply</button></div>
           </div>

@@ -187,7 +187,7 @@ const findUserByCredentials = (email, password) => {
   return users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
 };
 
-// --- Configuration & Mock Data ---
+// --- Configuration ---
 const ROLES = { STUDENT: 'Student', PARENT: 'Parent', TEACHER: 'Teacher', ADMIN: 'Admin' };
 const TABS = { OVERVIEW: 'Overview', HOMEWORK: 'Homework', ANALYTICS: 'Analytics', SCHOOL: 'School', PAYMENTS: 'Payments', SETTINGS: 'Settings' };
 
@@ -198,7 +198,7 @@ const ROLE_COPY = {
     navHome: 'Home',
     navHomework: 'My homework',
     navStats: 'My stats',
-    navPayments: 'Payments',
+    navPayments: 'Subscription',
     navSettings: 'Settings',
     homeworkTitle: 'My homework',
     addHomework: 'Add homework',
@@ -391,7 +391,7 @@ const ROLE_COPY = {
     navHome: 'Overview',
     navHomework: 'Child\'s homework',
     navStats: 'Progress & stats',
-    navPayments: 'Payments',
+    navPayments: 'Subscription',
     navSettings: 'Settings',
     homeworkTitle: 'Assignments',
     addHomework: 'Add task',
@@ -445,7 +445,7 @@ const ROLE_COPY = {
     navHome: 'Dashboard',
     navHomework: 'Assignments',
     navStats: 'Analytics',
-    navPayments: 'Payments',
+    navPayments: 'Subscription',
     navSettings: 'Settings',
     analyticsTitle: 'Platform Analytics',
     exportBtn: 'Export',
@@ -465,7 +465,7 @@ const GRADE_OVERRIDES = {
     navHome: 'Home',
     navHomework: 'My work',
     navStats: 'How I\'m doing',
-    navPayments: 'Payments',
+    navPayments: 'Subscription',
     navSettings: 'Settings',
     // Homework
     homeworkTitle: 'My work',
@@ -757,19 +757,9 @@ const saveStoredAssignments = (userKey, list) => {
   } catch {}
 };
 
-const INITIAL_ASSIGNMENTS = [
-  { id: 1, category: 'Self-Study', title: "Finish Physics Lab", subject: "Science", dueDate: getDate(-1), priority: "High", status: "Pending", progress: 65, description: "Need to finish the data analysis part.", grade: null },
-  { id: 2, category: 'Homework', title: "Read Chapter 4", subject: "English", dueDate: getDate(0), priority: "Medium", status: "Pending", progress: 20, description: "Read The Great Gatsby chapter 4 and take notes.", grade: null },
-  { id: 3, category: 'Project', title: "History Presentation", subject: "History", dueDate: getDate(2), priority: "High", status: "Pending", progress: 5, description: "Prepare slides for the Roman Empire presentation.", grade: null },
-];
+const INITIAL_ASSIGNMENTS = [];
 
 const getAssignmentProgress = (a) => (a.status === 'Completed' || a.status === 'Submitted') ? 100 : (a.progress ?? 0);
-
-const HISTORY_MOCK = [
-  { id: 101, title: "Completed Math Set", type: "success", time: "2 hours ago" },
-  { id: 102, title: "Added new task", type: "info", time: "5 hours ago" },
-  { id: 103, title: "Study Goal Reached", type: "success", time: "Yesterday" }
-];
 
 const SUBSCRIPTION_PLANS = [
   {
@@ -1262,7 +1252,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(TABS.OVERVIEW);
 
   const [assignments, setAssignments] = useState(INITIAL_ASSIGNMENTS);
-  const [recentHistory, setRecentHistory] = useState(HISTORY_MOCK);
+  const [recentHistory, setRecentHistory] = useState([]);
   const [hwFilter, setHwFilter] = useState(() => { try { const v = storageGet('hw_filter'); return v && Object.values(HW_FILTERS).includes(v) ? v : HW_FILTERS.DUE; } catch { return HW_FILTERS.DUE; } });
 
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
@@ -1293,7 +1283,7 @@ export default function App() {
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(getDate(0));
 
-  const [studyStreak, setStudyStreak] = useState(12);
+  const [studyStreak, setStudyStreak] = useState(0);
   const [pairingCode, setPairingCode] = useState("");
   const [linkedStudents, setLinkedStudents] = useState([]);
   const [selectedChildEmail, setSelectedChildEmail] = useState(null);
@@ -1403,7 +1393,7 @@ export default function App() {
     if (appUser?.role === ROLES.PARENT) {
       if (selectedChildEmail) {
         const stored = getStoredAssignments(selectedChildEmail);
-        setAssignments(stored && stored.length > 0 ? stored : INITIAL_ASSIGNMENTS.map(a => ({ ...a, grade: null })));
+        setAssignments(stored && stored.length > 0 ? stored : []);
       } else {
         setAssignments([]);
       }
@@ -2670,10 +2660,10 @@ export default function App() {
                           <div className="relative w-20 h-20 shrink-0">
                             <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                               <path fill="none" stroke="rgb(203 213 225)" strokeWidth="3" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                              <path fill="none" stroke="url(#violetGrad)" strokeWidth="3" strokeDasharray="25, 75" strokeLinecap="round" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                              <path fill="none" stroke="url(#violetGrad)" strokeWidth="3" strokeDasharray={`${getAssignmentProgress(next)}, ${100 - getAssignmentProgress(next)}`} strokeLinecap="round" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                               <defs><linearGradient id="violetGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#d946ef" /></linearGradient></defs>
                             </svg>
-                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-700">25%</span>
+                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-700">{getAssignmentProgress(next)}%</span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <span className="inline-block px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-black uppercase mb-2">{copy.comingUpLabel}</span>
@@ -2700,7 +2690,9 @@ export default function App() {
                     <button onClick={() => setIsActivityLogOpen(true)} className="text-[10px] font-bold text-violet-500 hover:text-violet-600">{copy.viewAll}</button>
                   </div>
                   <div className="space-y-3">
-                    {recentHistory.map((item) => (
+                    {recentHistory.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-4">No activity yet</p>
+                    ) : recentHistory.map((item) => (
                       <div key={item.id} className="flex items-start gap-3 pb-3 border-b border-slate-100 last:border-0">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-violet-100 text-violet-600'}`}>
                           {item.type === 'success' ? <CheckCircle2 size={16} /> : <History size={16} />}
@@ -2952,54 +2944,11 @@ export default function App() {
         {activeTab === TABS.ANALYTICS && (
           <div className="space-y-6 text-slate-800 animate-in fade-in">
             {subscriptionPlan !== 'pro' ? (
-              <div className="space-y-6">
-                {/* Blurred preview of stats */}
-                <div className="relative overflow-hidden rounded-3xl">
-                  <div className="bg-white p-6 rounded-2xl filter blur-[3px] pointer-events-none select-none border border-slate-100">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-                      {['78%', '12 days', '9', '7'].map((v, i) => (
-                        <div key={i} className="bg-white/60 p-4 rounded-xl"><div className="h-2 w-16 bg-slate-200 rounded mb-2" /><p className="text-xl font-black text-slate-300">{v}</p></div>
-                      ))}
-                    </div>
-                    <div className="flex items-end justify-between gap-2 h-24 mb-4">
-                      {[40, 65, 30, 80, 55, 70, 45].map((h, i) => (
-                        <div key={i} className="flex-1 bg-gradient-to-t from-violet-300 to-fuchsia-300 rounded-t-lg" style={{ height: `${h}%` }} />
-                      ))}
-                    </div>
-                    <div className="space-y-2">
-                      {['Math', 'Science', 'English'].map(s => (
-                        <div key={s} className="flex items-center gap-3"><span className="w-16 text-xs text-slate-300">{s}</span><div className="flex-1 h-4 bg-slate-100 rounded overflow-hidden"><div className="h-full bg-violet-200 rounded" style={{ width: `${Math.random() * 60 + 20}%` }} /></div></div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/40 backdrop-blur-sm rounded-3xl">
-                    <div className="w-14 h-14 rounded-full bg-violet-100 flex items-center justify-center mb-3"><Lock size={24} className="text-violet-500" /></div>
-                    <h3 className="text-xl font-black text-slate-800 mb-2">{copy.analyticsTitle || 'Advanced Stats'}</h3>
-                    <ul className="text-sm text-slate-600 space-y-1.5 mb-4 text-left">
-                      <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-violet-500" /> Completion trends by week</li>
-                      <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-violet-500" /> Risk trajectory over time</li>
-                      <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-violet-500" /> Subject breakdown analysis</li>
-                    </ul>
-                    <div className="flex gap-2">
-                      <button onClick={() => setStatsPreviewOpen(true)} className="px-5 py-2.5 bg-white border-2 border-violet-300 text-violet-600 font-bold rounded-xl text-sm hover:bg-violet-50 transition-colors">See what you get</button>
-                      <button onClick={() => setIsSubscriptionOpen(true)} className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-bold rounded-xl text-sm shadow-lg hover:scale-[1.02] transition-all">Upgrade to Pro</button>
-                    </div>
-                  </div>
-                </div>
-
-                {statsPreviewOpen && (
-                  <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setStatsPreviewOpen(false)}>
-                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl animate-in fade-in" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-black text-slate-800">What Pro unlocks</h3><button onClick={() => setStatsPreviewOpen(false)} className="p-1.5 bg-slate-100 rounded-full"><X size={16} /></button></div>
-                      <div className="space-y-4 mb-6">
-                        <div className="flex gap-3"><div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center shrink-0"><TrendingUp size={18} className="text-violet-500" /></div><div><p className="font-bold text-sm text-slate-800">Weekly completion trends</p><p className="text-xs text-slate-500">Track how your work rate changes week over week</p></div></div>
-                        <div className="flex gap-3"><div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0"><AlertTriangle size={18} className="text-amber-500" /></div><div><p className="font-bold text-sm text-slate-800">Risk trajectory</p><p className="text-xs text-slate-500">See your risk score trend and catch problems early</p></div></div>
-                        <div className="flex gap-3"><div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0"><PieChart size={18} className="text-emerald-500" /></div><div><p className="font-bold text-sm text-slate-800">Subject breakdown</p><p className="text-xs text-slate-500">Understand which subjects need more attention</p></div></div>
-                      </div>
-                      <button onClick={() => { setStatsPreviewOpen(false); setIsSubscriptionOpen(true); }} className="w-full py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-bold rounded-xl shadow-lg">Upgrade to Pro</button>
-                    </div>
-                  </div>
-                )}
+              <div className="bg-white p-10 rounded-2xl border border-slate-100 flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center mb-4"><Lock size={28} className="text-violet-500" /></div>
+                <h3 className="text-xl font-black text-slate-800 mb-2">Advanced Stats</h3>
+                <p className="text-sm text-slate-500 mb-6 max-w-xs">Upgrade to Pro to unlock completion trends, risk trajectory, and subject breakdowns.</p>
+                <button onClick={() => setIsSubscriptionOpen(true)} className="px-6 py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-bold rounded-xl text-sm shadow-lg hover:scale-[1.02] transition-all">Upgrade to Pro</button>
               </div>
             ) : (
               <>

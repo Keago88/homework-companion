@@ -8,6 +8,7 @@ const splashStyles = `
     inset: 0;
     z-index: 9999;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     background: #ffffff;
@@ -145,6 +146,7 @@ const splashStyles = `
     font-weight: 300;
     letter-spacing: .06em;
     color: rgba(124,58,237,.45);
+    text-align: center;
     animation: splashFadeUp .9s cubic-bezier(.22,1,.36,1) .75s both;
   }
 
@@ -163,7 +165,7 @@ const splashStyles = `
     width: 140px;
     height: 3px;
     border-radius: 99px;
-    background: rgba(255,255,255,.1);
+    background: rgba(124,58,237,.1);
     overflow: hidden;
   }
 

@@ -2514,7 +2514,7 @@ export default function App() {
             <input
               type="text"
               value={dashboardSearch}
-              onChange={e => setDashboardSearch(e.target.value)}
+              onChange={e => { setDashboardSearch(e.target.value); if (e.target.value) { setActiveTab(TABS.HOMEWORK); setViewMode('list'); } }}
               placeholder={copy.searchPlaceholder}
               className="w-full pl-8 pr-8 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400 transition-all placeholder:text-slate-400 text-slate-700"
             />
@@ -2762,14 +2762,17 @@ export default function App() {
 
         {activeTab === TABS.HOMEWORK && (() => {
           const today = getDate(0);
+          const searchTerm = dashboardSearch.toLowerCase().trim();
           const filteredHw = assignments.filter(a => {
             const isDone = a.status === 'Completed' || a.status === 'Submitted';
             const subjectOk = filterSubject === 'All' || a.subject === filterSubject;
             if (!subjectOk) return false;
+            // When searching, show all statuses that match — ignore the active tab filter
+            if (searchTerm) return a.title.toLowerCase().includes(searchTerm) || a.subject.toLowerCase().includes(searchTerm);
             if (hwFilter === HW_FILTERS.OVERDUE) return a.dueDate < today && !isDone;
             if (hwFilter === HW_FILTERS.DUE) return a.dueDate >= today && !isDone;
             return isDone;
-          }).filter(a => !dashboardSearch || a.title.toLowerCase().includes(dashboardSearch.toLowerCase()) || a.subject.toLowerCase().includes(dashboardSearch.toLowerCase()));
+          });
           const allSelected = filteredHw.length > 0 && filteredHw.every(a => selectedHwIds.has(a.id));
           return (
           <div className="animate-in slide-in-from-bottom-4 text-slate-800">

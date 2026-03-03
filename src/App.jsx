@@ -2509,7 +2509,21 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar */}
         <header className="h-14 bg-white border-b border-slate-100 flex items-center gap-3 px-4 md:px-6 shrink-0 z-20">
-          <div className="flex-1" />
+          <div className="flex-1 max-w-xs relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={dashboardSearch}
+              onChange={e => setDashboardSearch(e.target.value)}
+              placeholder={copy.searchPlaceholder}
+              className="w-full pl-8 pr-8 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400 transition-all placeholder:text-slate-400 text-slate-700"
+            />
+            {dashboardSearch && (
+              <button onClick={() => setDashboardSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X size={13} />
+              </button>
+            )}
+          </div>
           <span className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 rounded-lg text-[10px] font-black text-violet-600 uppercase tracking-wider shrink-0"><Calendar size={12} /> {currentTerm}</span>
           {appUser.role === ROLES.STUDENT && (
             <div className="flex items-center gap-1 bg-gradient-to-r from-violet-500 to-fuchsia-500 px-2.5 py-1.5 rounded-lg text-white shadow-sm shrink-0">

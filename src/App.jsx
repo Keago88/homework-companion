@@ -2528,52 +2528,88 @@ export default function App() {
             )}
             {searchOpen && dashboardSearch.trim() && (() => {
               const term = dashboardSearch.toLowerCase().trim();
+              const close = () => { setSearchOpen(false); setDashboardSearch(''); };
+
               const pageItems = sidebarNavItems.filter(n => n.label.toLowerCase().includes(term));
+
+              const actionItems = [
+                { label: 'Add homework', keywords: 'add homework create assignment new task', icon: Plus, action: () => setIsCreateAssignmentModalOpen(true) },
+                { label: 'Import CSV', keywords: 'import csv spreadsheet upload', icon: Upload, action: () => setIsCsvImportOpen(true) },
+                { label: 'Edit profile', keywords: 'edit profile picture name grade school avatar photo', icon: User, action: () => setIsProfileSettingsOpen(true) },
+                { label: 'Log out', keywords: 'log out sign out logout signout', icon: LogOut, action: () => signOut(auth) },
+                { label: 'Notifications', keywords: 'notifications alerts bell reminders', icon: Bell, action: () => setIsNotifPanelOpen(true) },
+                { label: 'Overdue tasks', keywords: 'overdue late missing behind', icon: AlertTriangle, action: () => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.OVERDUE); setViewMode('list'); } },
+                { label: 'Completed tasks', keywords: 'completed done finished submitted', icon: CheckCircle2, action: () => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.COMPLETED); setViewMode('list'); } },
+                { label: 'Due tasks', keywords: 'due pending upcoming todo to do', icon: Clock, action: () => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.DUE); setViewMode('list'); } },
+              ].filter(a => a.keywords.includes(term) || a.label.toLowerCase().includes(term));
+
+              const settingsItems = [
+                { label: 'Manage subjects', desc: 'Add or remove subjects', keywords: 'subjects manage add remove subject math science english history art coding', icon: BookOpen, action: () => setActiveTab(TABS.SETTINGS) },
+                { label: 'Subscription plans', desc: 'Free & Pro plans', keywords: 'subscription plan free pro upgrade premium payment billing pricing r199 cancel', icon: CreditCard, action: () => setActiveTab(TABS.PAYMENTS) },
+                { label: 'Payment history', desc: 'View past invoices', keywords: 'payment history invoice receipt billing', icon: Wallet, action: () => setActiveTab(TABS.PAYMENTS) },
+                { label: 'Integrations', desc: 'Google Classroom sync', keywords: 'integrations google classroom connect sync lms', icon: RefreshCw, action: () => setActiveTab(TABS.SETTINGS) },
+                { label: 'Pairing code', desc: 'Link parent account', keywords: 'pairing code parent link share connect family', icon: Users, action: () => setActiveTab(TABS.SETTINGS) },
+                { label: 'Analytics & stats', desc: 'Completion, streaks, trends', keywords: 'analytics stats statistics completion streak trend chart graph progress insights forecast', icon: BarChart2, action: () => setActiveTab(TABS.ANALYTICS) },
+                { label: 'Risk score', desc: 'Academic risk assessment', keywords: 'risk score assessment low moderate high critical', icon: AlertTriangle, action: () => setActiveTab(TABS.ANALYTICS) },
+                { label: 'Recovery plan', desc: 'Catch-up targets', keywords: 'recovery plan catch up catchup target improve', icon: Target, action: () => setActiveTab(TABS.OVERVIEW) },
+                { label: 'Activity log', desc: 'Recent actions', keywords: 'activity log history recent actions', icon: History, action: () => setActiveTab(TABS.OVERVIEW) },
+              ].filter(a => a.keywords.includes(term) || a.label.toLowerCase().includes(term) || (a.desc && a.desc.toLowerCase().includes(term)));
+
+              const subjectResults = subjects.filter(s => s.toLowerCase().includes(term)).map(s => ({
+                label: s, icon: BookOpen, action: () => { setActiveTab(TABS.HOMEWORK); setViewMode('list'); setFilterSubject(s); }
+              }));
+
+              const schoolResults = (appUser?.role === ROLES.ADMIN ? adminSchools : [])
+                .filter(s => s.name.toLowerCase().includes(term))
+                .slice(0, 4)
+                .map(s => ({ label: s.name, icon: Building2, action: () => setActiveTab(TABS.SCHOOL) }));
+
+              const childResults = (appUser?.role === ROLES.PARENT ? linkedStudents : [])
+                .filter(e => e.toLowerCase().includes(term))
+                .map(e => ({ label: e, icon: Users, action: () => setSelectedChildEmail(e) }));
+
               const hwResults = assignments.filter(a =>
-                a.title.toLowerCase().includes(term) || a.subject.toLowerCase().includes(term)
-              ).slice(0, 6);
-              const hasResults = pageItems.length > 0 || hwResults.length > 0;
+                a.title.toLowerCase().includes(term) || a.subject.toLowerCase().includes(term) || (a.description || '').toLowerCase().includes(term)
+              ).slice(0, 5);
+
+              const sections = [
+                { title: 'Pages', items: pageItems.map(n => ({ label: n.label, Icon: n.icon, action: () => { if (n.action) n.action(); else setActiveTab(n.key); } })) },
+                { title: 'Actions', items: actionItems.map(a => ({ label: a.label, Icon: a.icon, action: a.action })) },
+                { title: 'Features', items: settingsItems.map(a => ({ label: a.label, desc: a.desc, Icon: a.icon, action: a.action })) },
+                { title: 'Subjects', items: subjectResults.map(a => ({ label: a.label, Icon: a.icon, action: a.action })) },
+                ...(schoolResults.length > 0 ? [{ title: 'Schools', items: schoolResults.map(a => ({ label: a.label, Icon: a.icon, action: a.action })) }] : []),
+                ...(childResults.length > 0 ? [{ title: 'Students', items: childResults.map(a => ({ label: a.label, Icon: a.icon, action: a.action })) }] : []),
+              ].filter(s => s.items.length > 0);
+
+              const totalResults = sections.reduce((sum, s) => sum + s.items.length, 0) + hwResults.length;
+
               return (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 max-h-80 overflow-y-auto">
-                  {!hasResults && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 max-h-96 overflow-y-auto">
+                  {totalResults === 0 && (
                     <div className="px-4 py-3 text-xs text-slate-400 font-medium">No results found</div>
                   )}
-                  {pageItems.length > 0 && (
-                    <>
-                      <div className="px-4 pt-2.5 pb-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">Pages</div>
-                      {pageItems.map(n => (
-                        <button
-                          key={n.key}
-                          onMouseDown={() => {
-                            setSearchOpen(false);
-                            setDashboardSearch('');
-                            if (n.action) n.action(); else setActiveTab(n.key);
-                          }}
-                          className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left"
-                        >
-                          <n.icon size={16} className="text-violet-500 shrink-0" />
-                          <span className="text-xs font-bold text-slate-700">{n.label}</span>
+                  {sections.map(section => (
+                    <div key={section.title}>
+                      <div className="px-4 pt-2.5 pb-1 text-[10px] font-black text-slate-400 uppercase tracking-wider border-t border-slate-50 first:border-0">{section.title}</div>
+                      {section.items.map((item, i) => (
+                        <button key={i} onMouseDown={() => { close(); item.action(); }} className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left">
+                          <item.Icon size={16} className="text-violet-500 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-slate-700 truncate">{item.label}</p>
+                            {item.desc && <p className="text-[10px] text-slate-400">{item.desc}</p>}
+                          </div>
                         </button>
                       ))}
-                    </>
-                  )}
+                    </div>
+                  ))}
                   {hwResults.length > 0 && (
-                    <>
+                    <div>
                       <div className="px-4 pt-2.5 pb-1 text-[10px] font-black text-slate-400 uppercase tracking-wider border-t border-slate-50">Assignments</div>
                       {hwResults.map(a => {
                         const isDone = a.status === 'Completed' || a.status === 'Submitted';
                         const isOverdue = a.dueDate < getDate(0) && !isDone;
                         return (
-                          <button
-                            key={a.id}
-                            onMouseDown={() => {
-                              setSearchOpen(false);
-                              setDashboardSearch('');
-                              setSelectedAssignment(a);
-                              setIsUploadModalOpen(true);
-                            }}
-                            className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left"
-                          >
+                          <button key={a.id} onMouseDown={() => { close(); setSelectedAssignment(a); setIsUploadModalOpen(true); }} className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left">
                             <BookOpen size={16} className="text-violet-400 shrink-0" />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-bold text-slate-700 truncate">{a.title}</p>
@@ -2585,7 +2621,7 @@ export default function App() {
                           </button>
                         );
                       })}
-                    </>
+                    </div>
                   )}
                 </div>
               );

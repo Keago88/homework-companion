@@ -2756,8 +2756,8 @@ export default function App() {
               </div>
             )}
 
-            {/* At Risk module - only show when there are assignments to base risk on */}
-            {(appUser.role === ROLES.STUDENT || (appUser.role === ROLES.PARENT && selectedChildEmail)) && riskScore != null && assignments.length > 0 && (
+            {/* At Risk module - only show when there's enough meaningful data */}
+            {(appUser.role === ROLES.STUDENT || (appUser.role === ROLES.PARENT && selectedChildEmail)) && riskScore != null && assignments.length >= 3 && assignments.some(a => a.status !== 'Completed' && a.status !== 'Submitted') && (
               <div className={`bg-white p-5 rounded-xl border border-slate-100 border-l-4 cursor-pointer hover:shadow-md transition-all ${riskScore >= 80 ? 'border-l-emerald-500' : riskScore >= 60 ? 'border-l-amber-500' : riskScore >= 40 ? 'border-l-orange-500' : 'border-l-rose-500'}`} onClick={() => setActiveTab(TABS.ANALYTICS)}>
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="flex-1 min-w-0">
@@ -3211,8 +3211,8 @@ export default function App() {
 
             {/* Row 2: Risk score + insights side by side */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Risk overview - only show when there are assignments to base risk on */}
-              {riskScore != null && assignments.length > 0 && (
+              {/* Risk overview - only show with enough meaningful data */}
+              {riskScore != null && assignments.length >= 3 && assignments.some(a => a.status !== 'Completed' && a.status !== 'Submitted') && (
                 <div className={`bg-white p-5 rounded-xl border border-slate-100 border-l-4 ${riskScore >= 80 ? 'border-l-emerald-500' : riskScore >= 60 ? 'border-l-amber-500' : riskScore >= 40 ? 'border-l-orange-500' : 'border-l-rose-500'}`}>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">{copy.riskTitle}</p>
                   <div className="flex items-center gap-4">

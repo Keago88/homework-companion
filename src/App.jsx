@@ -3722,12 +3722,35 @@ export default function App() {
               </div>
 
               {/* Notes */}
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">{copy.notesSection}</p>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <p className="text-sm text-slate-600 leading-relaxed">{selectedAssignment.description || copy.notesPlaceholder}</p>
-                </div>
-              </div>
+              {(() => {
+                const teacherReviewed = !!(selectedAssignment.teacherComments || selectedAssignment.grade != null);
+                const notesEditable = !isReadOnly && appUser?.role !== ROLES.TEACHER && !teacherReviewed;
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{copy.notesSection}</p>
+                      {teacherReviewed && <span className="text-[10px] font-bold text-amber-500 flex items-center gap-1"><Lock size={10} /> Locked after teacher review</span>}
+                    </div>
+                    {notesEditable ? (
+                      <textarea
+                        value={selectedAssignment.description || ''}
+                        onChange={e => {
+                          const updated = { ...selectedAssignment, description: e.target.value };
+                          setSelectedAssignment(updated);
+                          setAssignments(prev => prev.map(a => a.id === selectedAssignment.id ? updated : a));
+                        }}
+                        placeholder={copy.notesPlaceholder}
+                        className="w-full bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm text-slate-700 leading-relaxed outline-none resize-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400 transition-all"
+                        rows={3}
+                      />
+                    ) : (
+                      <div className={`p-4 rounded-xl border ${teacherReviewed ? 'bg-slate-100 border-slate-200 opacity-70' : 'bg-slate-50 border-slate-100'}`}>
+                        <p className="text-sm text-slate-600 leading-relaxed">{selectedAssignment.description || copy.notesPlaceholder}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Document */}
               <div>

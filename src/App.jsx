@@ -1428,6 +1428,11 @@ export default function App() {
     const userKey = appUser?.role === ROLES.PARENT ? selectedChildEmail : currentUserKey;
     if (!userKey) return;
     const as = appUser?.role === ROLES.PARENT ? getStoredAssignments(selectedChildEmail) || [] : assignments;
+    if (as.length === 0) {
+      setRiskScore(null);
+      setForecast(null);
+      return;
+    }
     const completions = firebaseUserId && appUser?.role !== ROLES.PARENT
       ? completionHistoryFromFirestore
       : getCompletionHistory(userKey);
@@ -1877,8 +1882,14 @@ export default function App() {
     const overdue = assignments.filter(a => a.status !== 'Completed' && a.status !== 'Submitted' && a.dueDate < today).length;
     const dueTodayOrFuture = assignments.filter(a => a.status !== 'Completed' && a.status !== 'Submitted' && a.dueDate >= today).length;
     const completed = assignments.filter(a => a.status === 'Completed' || a.status === 'Submitted').length;
+    if (appUser?.role === ROLES.TEACHER) {
+      const toGrade = assignments.filter(a => a.status === 'Submitted').length;
+      const inProgress = overdue + dueTodayOrFuture;
+      const graded = assignments.filter(a => a.status === 'Completed' || (a.status === 'Submitted' && a.teacherComments)).length;
+      return { overdue, dueToday: dueTodayOrFuture, completed, toGrade, inProgress, graded };
+    }
     return { overdue, dueToday: dueTodayOrFuture, completed };
-  }, [assignments]);
+  }, [assignments, appUser?.role]);
 
   const analyticsData = useMemo(() => {
     const allCompletions = getEffectiveCompletions(viewingStudentKey || currentUserKey);
@@ -2698,24 +2709,44 @@ export default function App() {
               )}
             </div>
 
-            {/* Summary cards - dense, actionable */}
-            <div className="grid grid-cols-3 gap-3">
-              <div onClick={() => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.OVERDUE); }} className="bg-white p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border border-slate-100 group">
-                <div className="flex items-center justify-between mb-1"><p className="text-[10px] font-black text-rose-500 uppercase tracking-wider">{copy.cardLate}</p><ChevronRight size={14} className="text-slate-300 group-hover:text-rose-400 transition-colors" /></div>
-                <p className="text-2xl font-black text-rose-600">{stats.overdue}</p>
-                <p className="text-[10px] font-medium text-slate-400 mt-0.5">{stats.overdue > 0 ? copy.alertsNeedAttention : copy.statAllCaughtUp}</p>
+            {/* Summary cards - role-specific */}
+            {appUser.role === ROLES.TEACHER ? (
+              <div className="grid grid-cols-3 gap-3">
+                <div onClick={() => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.OVERDUE); }} className="bg-white p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border border-slate-100 group">
+                  <div className="flex items-center justify-between mb-1"><p className="text-[10px] font-black text-rose-500 uppercase tracking-wider">Overdue</p><ChevronRight size={14} className="text-slate-300 group-hover:text-rose-400 transition-colors" /></div>
+                  <p className="text-2xl font-black text-rose-600">{stats.overdue}</p>
+                  <p className="text-[10px] font-medium text-slate-400 mt-0.5">{stats.overdue > 0 ? 'tasks past due' : 'none overdue'}</p>
+                </div>
+                <div onClick={() => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.DUE); }} className="bg-white p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border border-slate-100 group">
+                  <div className="flex items-center justify-between mb-1"><p className="text-[10px] font-black text-amber-500 uppercase tracking-wider">To Grade</p><ChevronRight size={14} className="text-slate-300 group-hover:text-amber-400 transition-colors" /></div>
+                  <p className="text-2xl font-black text-amber-600">{stats.toGrade ?? 0}</p>
+                  <p className="text-[10px] font-medium text-slate-400 mt-0.5">submitted by students</p>
+                </div>
+                <div onClick={() => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.COMPLETED); }} className="bg-white p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border border-slate-100 group">
+                  <div className="flex items-center justify-between mb-1"><p className="text-[10px] font-black text-emerald-500 uppercase tracking-wider">Graded</p><ChevronRight size={14} className="text-slate-300 group-hover:text-emerald-400 transition-colors" /></div>
+                  <p className="text-2xl font-black text-emerald-600">{stats.graded ?? 0}</p>
+                  <p className="text-[10px] font-medium text-slate-400 mt-0.5">tasks reviewed</p>
+                </div>
               </div>
-              <div onClick={() => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.DUE); }} className="bg-white p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border border-slate-100 group">
-                <div className="flex items-center justify-between mb-1"><p className="text-[10px] font-black text-violet-500 uppercase tracking-wider">{copy.cardTodo}</p><ChevronRight size={14} className="text-slate-300 group-hover:text-violet-400 transition-colors" /></div>
-                <p className="text-2xl font-black text-violet-600">{stats.dueToday}</p>
-                <p className="text-[10px] font-medium text-slate-400 mt-0.5">{copy.cardTasksTodo}</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                <div onClick={() => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.OVERDUE); }} className="bg-white p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border border-slate-100 group">
+                  <div className="flex items-center justify-between mb-1"><p className="text-[10px] font-black text-rose-500 uppercase tracking-wider">{copy.cardLate}</p><ChevronRight size={14} className="text-slate-300 group-hover:text-rose-400 transition-colors" /></div>
+                  <p className="text-2xl font-black text-rose-600">{stats.overdue}</p>
+                  <p className="text-[10px] font-medium text-slate-400 mt-0.5">{stats.overdue > 0 ? copy.alertsNeedAttention : copy.statAllCaughtUp}</p>
+                </div>
+                <div onClick={() => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.DUE); }} className="bg-white p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border border-slate-100 group">
+                  <div className="flex items-center justify-between mb-1"><p className="text-[10px] font-black text-violet-500 uppercase tracking-wider">{copy.cardTodo}</p><ChevronRight size={14} className="text-slate-300 group-hover:text-violet-400 transition-colors" /></div>
+                  <p className="text-2xl font-black text-violet-600">{stats.dueToday}</p>
+                  <p className="text-[10px] font-medium text-slate-400 mt-0.5">{copy.cardTasksTodo}</p>
+                </div>
+                <div onClick={() => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.COMPLETED); }} className="bg-white p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border border-slate-100 group">
+                  <div className="flex items-center justify-between mb-1"><p className="text-[10px] font-black text-emerald-500 uppercase tracking-wider">{copy.cardDone}</p><ChevronRight size={14} className="text-slate-300 group-hover:text-emerald-400 transition-colors" /></div>
+                  <p className="text-2xl font-black text-emerald-600">{stats.completed}</p>
+                  <p className="text-[10px] font-medium text-slate-400 mt-0.5">{copy.cardCompleted}</p>
+                </div>
               </div>
-              <div onClick={() => { setActiveTab(TABS.HOMEWORK); setHwFilter(HW_FILTERS.COMPLETED); }} className="bg-white p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border border-slate-100 group">
-                <div className="flex items-center justify-between mb-1"><p className="text-[10px] font-black text-emerald-500 uppercase tracking-wider">{copy.cardDone}</p><ChevronRight size={14} className="text-slate-300 group-hover:text-emerald-400 transition-colors" /></div>
-                <p className="text-2xl font-black text-emerald-600">{stats.completed}</p>
-                <p className="text-[10px] font-medium text-slate-400 mt-0.5">{copy.cardCompleted}</p>
-              </div>
-            </div>
+            )}
 
             {/* Active recovery target */}
             {(appUser.role === ROLES.STUDENT || (appUser.role === ROLES.PARENT && selectedChildEmail)) && (() => { const r = getActiveRecoveryForStudent(viewingStudentKey); return r; })() && (

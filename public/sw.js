@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hw-companion-v1';
+const CACHE_NAME = 'hw-companion-v2';
 const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', (e) => {

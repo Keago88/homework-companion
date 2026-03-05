@@ -1,10 +1,10 @@
 /**
  * Firebase initialization. Exports app, auth, db when configured.
- * Used by App.jsx and platform data (e.g. parent links in Firestore).
+ * Firestore uses persistent cache for offline/mobile sync across devices.
  */
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 
 let app = null;
 let auth = null;
@@ -24,7 +24,9 @@ try {
   if (firebaseConfig?.apiKey) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
   }
 } catch (e) {
   console.warn('Firebase unavailable, running in demo mode');

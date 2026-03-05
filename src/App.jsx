@@ -1396,12 +1396,28 @@ export default function App() {
   const refreshFromCloud = async () => {
     if (!firebaseUserId || appUser?.role === ROLES.PARENT || isSyncing) return;
     setIsSyncing(true);
-    try {
+    const doFetch = async () => {
       const [profile, fsAssignments, completions] = await Promise.all([
         platformData.getProfile(firebaseUserId),
         platformData.getAssignments(firebaseUserId),
         platformData.getCompletionHistoryFromFirestore(firebaseUserId),
       ]);
+      return { profile, fsAssignments, completions };
+    };
+    try {
+      let result;
+      try {
+        result = await doFetch();
+      } catch (e) {
+        if (db && (e?.message?.toLowerCase().includes('offline') || e?.code === 'unavailable')) {
+          const { enableNetwork } = await import('firebase/firestore');
+          await enableNetwork(db);
+          result = await doFetch();
+        } else {
+          throw e;
+        }
+      }
+      const { profile, fsAssignments, completions } = result;
       if (profile && typeof profile === 'object') setProfileData(prev => ({ ...prev, ...profile }));
       if (fsAssignments !== null && Array.isArray(fsAssignments)) {
         loadReturnedAssignmentsRef.current = fsAssignments;
@@ -1416,7 +1432,12 @@ export default function App() {
     } catch (e) {
       const msg = e?.message || e?.code || 'Sync failed';
       console.warn('Refresh failed:', e);
-      showToast(msg.includes('permission') ? 'Sync failed: Check Firestore rules in Firebase Console' : msg, 'error', 6000);
+      const friendly = msg.toLowerCase().includes('offline')
+        ? "You're offline. Connect to the internet and try again."
+        : msg.includes('permission')
+          ? 'Sync failed: Check Firestore rules in Firebase Console'
+          : msg;
+      showToast(friendly, 'error', 6000);
     } finally {
       setIsSyncing(false);
     }

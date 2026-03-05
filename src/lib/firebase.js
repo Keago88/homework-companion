@@ -5,7 +5,7 @@
  */
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableNetwork } from 'firebase/firestore';
 
 let app = null;
 let auth = null;
@@ -26,6 +26,7 @@ try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    enableNetwork(db).catch(() => {});
   }
 } catch (e) {
   console.warn('Firebase unavailable, running in demo mode');

@@ -260,11 +260,9 @@ const PLATFORM_COLLECTION = 'platform';
 
 export const getUserData = async (userId) => {
   if (!userId || !useFirestore() || userId.includes('@')) return null;
-  try {
-    const docRef = doc(db, USER_DATA_COLLECTION, userId);
-    const snap = await getDoc(docRef);
-    return snap.exists() ? snap.data() : null;
-  } catch { return null; }
+  const docRef = doc(db, USER_DATA_COLLECTION, userId);
+  const snap = await getDoc(docRef);
+  return snap.exists() ? snap.data() : null;
 };
 
 export const getAssignments = async (userId) => {
@@ -298,12 +296,10 @@ export const subscribeToUserData = (userId, callback) => {
 
 export const saveAssignments = async (userId, assignments) => {
   if (!userId || !Array.isArray(assignments) || !useFirestore() || userId.includes('@')) return;
-  try {
-    const docRef = doc(db, USER_DATA_COLLECTION, userId);
-    const snap = await getDoc(docRef);
-    const existing = snap.exists() ? snap.data() : {};
-    await setDoc(docRef, { ...existing, assignments });
-  } catch (e) { console.warn('saveAssignments failed:', e); }
+  const docRef = doc(db, USER_DATA_COLLECTION, userId);
+  const snap = await getDoc(docRef);
+  const existing = snap.exists() ? snap.data() : {};
+  await setDoc(docRef, { ...existing, assignments });
 };
 
 export const getProfile = async (userId) => {

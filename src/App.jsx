@@ -1264,6 +1264,7 @@ export default function App() {
 
   const [assignments, setAssignments] = useState(INITIAL_ASSIGNMENTS);
   const [firestoreSyncReady, setFirestoreSyncReady] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const loadReturnedAssignmentsRef = useRef(null);
   const applyingRemoteUpdateRef = useRef(false);
   const [recentHistory, setRecentHistory] = useState([]);
@@ -1393,7 +1394,8 @@ export default function App() {
   }, [firebaseUserId, appUser?.role]);
 
   const refreshFromCloud = async () => {
-    if (!firebaseUserId || appUser?.role === ROLES.PARENT) return;
+    if (!firebaseUserId || appUser?.role === ROLES.PARENT || isSyncing) return;
+    setIsSyncing(true);
     try {
       const [profile, fsAssignments, completions] = await Promise.all([
         platformData.getProfile(firebaseUserId),
@@ -1406,11 +1408,17 @@ export default function App() {
         const cleaned = removeMockAssignments(fsAssignments);
         applyingRemoteUpdateRef.current = true;
         setAssignments(cleaned);
+        showToast(`Refreshed! ${cleaned.length} assignment${cleaned.length !== 1 ? 's' : ''} loaded`);
+      } else {
+        showToast('Cloud empty — add assignments on this device first', 'info');
       }
       if (Array.isArray(completions)) setCompletionHistoryFromFirestore(completions);
-      showToast('Refreshed from cloud');
     } catch (e) {
-      showToast('Refresh failed', 'info');
+      const msg = e?.message || e?.code || 'Sync failed';
+      console.warn('Refresh failed:', e);
+      showToast(msg.includes('permission') ? 'Sync failed: Check Firestore rules in Firebase Console' : msg, 'error', 6000);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -1444,7 +1452,10 @@ export default function App() {
         const loadResult = loadReturnedAssignmentsRef.current;
         const skipSave = assignments.length === 0 && loadResult === null;
         if (!skipSave) {
-          platformData.saveAssignments(firebaseUserId, assignments).catch(() => {});
+          platformData.saveAssignments(firebaseUserId, assignments).catch((e) => {
+            console.warn('Save to cloud failed:', e);
+            showToast('Could not save to cloud', 'info');
+          });
         }
       }
     }
@@ -1741,10 +1752,10 @@ export default function App() {
   const getEffectiveCompletions = (userKey) =>
     firebaseUserId && appUser?.role !== ROLES.PARENT ? completionHistoryFromFirestore : getCompletionHistory(userKey);
 
-  const showToast = (message, type = 'success') => {
+  const showToast = (message, type = 'success', duration = 3000) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
   };
 
   const pushUndo = (label, undoFn) => {
@@ -2132,12 +2143,12 @@ export default function App() {
           {/* Header bar - matches main app */}
           <header className="h-14 bg-white border-b border-slate-100 flex items-center gap-3 px-4 md:px-6 shrink-0 z-20">
             <div className="flex-1" />
-            {db && firebaseUserId ? (
-              <button type="button" onClick={refreshFromCloud} title="Tap to refresh from cloud" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 rounded-lg text-[10px] font-bold text-emerald-700 shrink-0 border border-emerald-200 hover:bg-emerald-100 transition-colors active:scale-95">
-                <Cloud size={12} />
-                <span className="hidden sm:inline">Synced</span>
-              </button>
-            ) : (
+          {db && firebaseUserId ? (
+            <button type="button" onClick={refreshFromCloud} disabled={isSyncing} title="Tap to refresh from cloud" className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 rounded-lg text-[10px] font-bold text-emerald-700 shrink-0 border border-emerald-200 hover:bg-emerald-100 active:bg-emerald-200 transition-colors disabled:opacity-70 disabled:cursor-wait min-w-[72px] justify-center">
+              {isSyncing ? <RefreshCw size={14} className="animate-spin shrink-0" /> : <Cloud size={14} className="shrink-0" />}
+              <span>{isSyncing ? 'Syncing…' : 'Synced'}</span>
+            </button>
+          ) : (
               <span title="Local only — add Firebase env vars to enable cloud sync" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 rounded-lg text-[10px] font-bold text-amber-700 shrink-0 border border-amber-200">
                 <CloudOff size={12} />
                 <span className="hidden sm:inline">Local</span>
@@ -2709,9 +2720,9 @@ export default function App() {
           </div>
           <span className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 rounded-lg text-[10px] font-black text-violet-600 uppercase tracking-wider shrink-0"><Calendar size={12} /> {currentTerm}</span>
           {db && firebaseUserId ? (
-            <button type="button" onClick={refreshFromCloud} title="Tap to refresh from cloud" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 rounded-lg text-[10px] font-bold text-emerald-700 shrink-0 border border-emerald-200 hover:bg-emerald-100 transition-colors active:scale-95">
-              <Cloud size={12} />
-              <span className="hidden sm:inline">Synced</span>
+            <button type="button" onClick={refreshFromCloud} disabled={isSyncing} title="Tap to refresh from cloud" className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 rounded-lg text-[10px] font-bold text-emerald-700 shrink-0 border border-emerald-200 hover:bg-emerald-100 active:bg-emerald-200 transition-colors disabled:opacity-70 disabled:cursor-wait min-w-[72px] justify-center">
+              {isSyncing ? <RefreshCw size={14} className="animate-spin shrink-0" /> : <Cloud size={14} className="shrink-0" />}
+              <span>{isSyncing ? 'Syncing…' : 'Synced'}</span>
             </button>
           ) : (
             <span title="Local only — data is saved on this device only. Add Firebase env vars in Vercel to enable cloud sync across devices." className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 rounded-lg text-[10px] font-bold text-amber-700 shrink-0 border border-amber-200">

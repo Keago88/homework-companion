@@ -15,7 +15,7 @@ import {
   browserSessionPersistence,
   GoogleAuthProvider
 } from 'firebase/auth';
-import { auth } from './lib/firebase';
+import { auth, db } from './lib/firebase';
 import {
   Plus,
   Calendar,
@@ -62,7 +62,9 @@ import {
   Activity,
   BellRing,
   CreditCard,
-  Wallet
+  Wallet,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { getSubscriptionStatus, initiateProCheckout, verifyPayment, cancelSubscription } from './services/subscription';
 import * as platformData from './lib/platformData';
@@ -2114,6 +2116,17 @@ export default function App() {
           {/* Header bar - matches main app */}
           <header className="h-14 bg-white border-b border-slate-100 flex items-center gap-3 px-4 md:px-6 shrink-0 z-20">
             <div className="flex-1" />
+            {db && firebaseUserId ? (
+              <span title="Synced across devices" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 rounded-lg text-[10px] font-bold text-emerald-700 shrink-0 border border-emerald-200">
+                <Cloud size={12} />
+                <span className="hidden sm:inline">Synced</span>
+              </span>
+            ) : (
+              <span title="Local only — add Firebase env vars to enable cloud sync" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 rounded-lg text-[10px] font-bold text-amber-700 shrink-0 border border-amber-200">
+                <CloudOff size={12} />
+                <span className="hidden sm:inline">Local</span>
+              </span>
+            )}
             <span className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 rounded-lg text-[10px] font-black text-violet-600 uppercase tracking-wider shrink-0"><Building2 size={12} /> Admin</span>
             <div className="relative">
               <button onClick={() => setIsQuickAddOpen(!isQuickAddOpen)} className="w-8 h-8 bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-lg text-white flex items-center justify-center shadow-sm hover:scale-105 active:scale-95 transition-transform shrink-0">
@@ -2679,6 +2692,17 @@ export default function App() {
             })()}
           </div>
           <span className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 rounded-lg text-[10px] font-black text-violet-600 uppercase tracking-wider shrink-0"><Calendar size={12} /> {currentTerm}</span>
+          {db && firebaseUserId ? (
+            <span title="Synced across devices — your data is saved to the cloud and will appear on all your devices when you sign in with the same account." className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 rounded-lg text-[10px] font-bold text-emerald-700 shrink-0 border border-emerald-200">
+              <Cloud size={12} />
+              <span className="hidden sm:inline">Synced</span>
+            </span>
+          ) : (
+            <span title="Local only — data is saved on this device only. Add Firebase env vars in Vercel to enable cloud sync across devices." className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 rounded-lg text-[10px] font-bold text-amber-700 shrink-0 border border-amber-200">
+              <CloudOff size={12} />
+              <span className="hidden sm:inline">Local</span>
+            </span>
+          )}
           {appUser.role === ROLES.STUDENT && (
             <div className="flex items-center gap-1 bg-gradient-to-r from-violet-500 to-fuchsia-500 px-2.5 py-1.5 rounded-lg text-white shadow-sm shrink-0">
               <Flame size={12} fill="currentColor" />

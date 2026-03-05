@@ -4,7 +4,7 @@
  */
 import { db } from './firebase';
 import { storageGet, storageSet } from './storage';
-import { collection, doc, getDoc, setDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 
 const KEYS = {
   SCHOOLS: 'hwc_schools',
@@ -271,6 +271,29 @@ export const getAssignments = async (userId) => {
   if (!userId || !useFirestore() || userId.includes('@')) return null;
   const data = await getUserData(userId);
   return data?.assignments && Array.isArray(data.assignments) ? data.assignments : null;
+};
+
+/**
+ * Subscribe to user_data in real time. Changes from any device will trigger the callback.
+ * Returns an unsubscribe function.
+ */
+export const subscribeToUserData = (userId, callback) => {
+  if (!userId || !useFirestore() || userId.includes('@')) return () => {};
+  try {
+    const docRef = doc(db, USER_DATA_COLLECTION, userId);
+    return onSnapshot(docRef, (snap) => {
+      const data = snap.exists() ? snap.data() : null;
+      const assignments = data?.assignments && Array.isArray(data.assignments) ? data.assignments : null;
+      const profile = data?.profile || null;
+      const completions = (data?.completionHistory?.completions ?? []);
+      callback({ assignments, profile, completions });
+    }, (err) => {
+      console.warn('Firestore sync error:', err?.message);
+    });
+  } catch (e) {
+    console.warn('subscribeToUserData failed:', e?.message);
+    return () => {};
+  }
 };
 
 export const saveAssignments = async (userId, assignments) => {

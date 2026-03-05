@@ -1372,34 +1372,22 @@ export default function App() {
     if (!firebaseUserId || !appUser || appUser.role === ROLES.PARENT) return;
     setFirestoreSyncReady(false);
     loadReturnedAssignmentsRef.current = null;
-    let cancelled = false;
-    (async () => {
-      try {
-        const [profile, fsAssignments, completions] = await Promise.all([
-          platformData.getProfile(firebaseUserId),
-          platformData.getAssignments(firebaseUserId),
-          platformData.getCompletionHistoryFromFirestore(firebaseUserId),
-        ]);
-        if (cancelled) return;
-        if (profile && typeof profile === 'object') setProfileData(prev => ({ ...prev, ...profile }));
-        if (fsAssignments !== null && Array.isArray(fsAssignments)) {
-          loadReturnedAssignmentsRef.current = fsAssignments;
-          const cleaned = removeMockAssignments(fsAssignments);
-          setAssignments(cleaned);
-          if (cleaned.length !== fsAssignments.length) {
-            platformData.saveAssignments(firebaseUserId, cleaned).catch(() => {});
-          }
-        } else {
-          loadReturnedAssignmentsRef.current = null;
+    const unsub = platformData.subscribeToUserData(firebaseUserId, ({ assignments: fsAssignments, profile, completions }) => {
+      if (profile && typeof profile === 'object') setProfileData(prev => ({ ...prev, ...profile }));
+      if (fsAssignments !== null && Array.isArray(fsAssignments)) {
+        loadReturnedAssignmentsRef.current = fsAssignments;
+        const cleaned = removeMockAssignments(fsAssignments);
+        setAssignments(cleaned);
+        if (cleaned.length !== fsAssignments.length) {
+          platformData.saveAssignments(firebaseUserId, cleaned).catch(() => {});
         }
-        if (Array.isArray(completions)) setCompletionHistoryFromFirestore(completions);
-      } catch (e) {
-        console.warn('Firestore load failed:', e?.message);
+      } else {
         loadReturnedAssignmentsRef.current = null;
       }
-      if (!cancelled) setFirestoreSyncReady(true);
-    })();
-    return () => { cancelled = true; };
+      if (Array.isArray(completions)) setCompletionHistoryFromFirestore(completions);
+      setFirestoreSyncReady(true);
+    });
+    return () => { unsub(); };
   }, [firebaseUserId, appUser?.role]);
 
   const getBackgroundClass = () => {

@@ -1482,8 +1482,13 @@ export default function App() {
         const skipSave = assignments.length === 0 && loadResult === null;
         if (!skipSave) {
           platformData.saveAssignments(firebaseUserId, assignments).catch((e) => {
-            console.warn('Save to cloud failed:', e);
-            showToast('Could not save to cloud. Check your internet connection.', 'error', 6000);
+            const code = e?.code || '';
+            const msg = e?.message || code || '';
+            console.warn('[HWC] Save to cloud failed:', { code, message: e?.message, full: e });
+            const friendly = (msg.toLowerCase().includes('offline') || msg.includes('unavailable'))
+              ? (navigator.onLine ? "Couldn't save: Can't reach server. Try mobile data or disable VPN." : "Couldn't save: No internet. Connect and try again.")
+              : (code === 'permission-denied' ? "Could not save: Permission denied. Check Firestore rules." : "Could not save to cloud. Check your connection.");
+            showToast(friendly, 'error', 8000);
           });
         }
       }

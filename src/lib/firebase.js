@@ -5,7 +5,7 @@
  */
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, enableNetwork } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, enableNetwork } from 'firebase/firestore';
 
 let app = null;
 let auth = null;
@@ -25,11 +25,23 @@ try {
   if (firebaseConfig?.apiKey) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    if (typeof window !== 'undefined') {
+      console.log('[HWC] Firebase configured, project:', firebaseConfig.projectId);
+    }
+    try {
+      db = initializeFirestore(app, {
+        experimentalForceLongPolling: true,
+        experimentalAutoDetectLongPolling: false
+      });
+    } catch {
+      db = getFirestore(app);
+    }
     enableNetwork(db).catch(() => {});
+  } else if (typeof window !== 'undefined') {
+    console.log('[HWC] Firebase not configured (missing VITE_FIREBASE_API_KEY or using demo-api-key)');
   }
 } catch (e) {
-  console.warn('Firebase unavailable, running in demo mode');
+  console.warn('[HWC] Firebase unavailable, running in demo mode:', e?.message);
 }
 
 export { app, auth, db };

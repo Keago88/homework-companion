@@ -1278,6 +1278,8 @@ export default function App() {
   const [subscriptionPlan, setSubscriptionPlan] = useState('free');
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [cloudDiagnostic, setCloudDiagnostic] = useState(null);
+  const [cloudDiagnosticLoading, setCloudDiagnosticLoading] = useState(false);
 
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [filterSubject, setFilterSubject] = useState(() => { try { return storageGet('hw_subject') || 'All'; } catch { return 'All'; } });
@@ -1448,6 +1450,30 @@ export default function App() {
       showToast(friendly, 'error', 8000);
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const testCloudConnection = async () => {
+    setCloudDiagnosticLoading(true);
+    setCloudDiagnostic(null);
+    try {
+      if (!db) {
+        setCloudDiagnostic({ ok: false, step: 'firebase', error: 'Firebase not configured. Check Vercel env vars (VITE_FIREBASE_*).' });
+        return;
+      }
+      if (!auth?.currentUser?.uid) {
+        setCloudDiagnostic({ ok: false, step: 'auth', error: 'Not signed in. Sign in with Google.' });
+        return;
+      }
+      const uid = auth.currentUser.uid;
+      const data = await platformData.getUserData(uid);
+      setCloudDiagnostic({ ok: true, step: 'read', message: 'Cloud connection OK. Read succeeded.' });
+    } catch (e) {
+      const code = e?.code || '';
+      const msg = e?.message || String(e);
+      setCloudDiagnostic({ ok: false, step: 'firestore', error: msg, code });
+    } finally {
+      setCloudDiagnosticLoading(false);
     }
   };
 
@@ -2396,6 +2422,22 @@ export default function App() {
                   <div><h3 className="font-bold text-slate-800 text-lg">{copy.profileTitle}</h3><p className="text-xs text-slate-500 font-medium">{copy.profileDesc}</p></div>
                   <div className="ml-auto text-violet-300"><ChevronRight size={24} /></div>
                 </div>
+                {db && (
+                  <div className="bg-white p-5 rounded-xl border border-slate-100">
+                    <h3 className="font-bold text-slate-800 text-lg mb-1 flex items-center gap-2"><Cloud size={18} className="text-violet-500" /> Cloud sync</h3>
+                    <p className="text-xs text-slate-500 mb-3">Test connection to Firebase</p>
+                    <button type="button" onClick={testCloudConnection} disabled={cloudDiagnosticLoading} className="px-4 py-2.5 bg-violet-100 text-violet-700 font-bold rounded-xl text-sm hover:bg-violet-200 disabled:opacity-60">
+                      {cloudDiagnosticLoading ? 'Testing…' : 'Test connection'}
+                    </button>
+                    {cloudDiagnostic && (
+                      <div className={`mt-3 p-3 rounded-lg text-sm ${cloudDiagnostic.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}>
+                        {cloudDiagnostic.ok ? <span>{cloudDiagnostic.message}</span> : (
+                          <div><p className="font-bold">{cloudDiagnostic.error}</p>{cloudDiagnostic.code && <p className="text-xs mt-1 opacity-80">Code: {cloudDiagnostic.code}</p>}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button onClick={handleSignOut} className="w-full bg-white p-4 rounded-xl border border-slate-100 text-rose-500 font-bold flex items-center gap-3 hover:bg-rose-50 transition-colors"><LogOut size={16} /> {copy.logOut || 'Log out'}</button>
               </div>
             )}
@@ -3624,6 +3666,27 @@ export default function App() {
                 </button>
                 {integrationMessage && (
                   <p className="text-xs font-medium text-slate-600 px-2">{integrationMessage}</p>
+                )}
+              </div>
+            )}
+            {db && appUser?.role !== ROLES.PARENT && (
+              <div className="bg-white p-5 rounded-xl border border-slate-100">
+                <h3 className="font-bold text-slate-800 text-lg mb-1 flex items-center gap-2"><Cloud size={18} className="text-violet-500" /> Cloud sync</h3>
+                <p className="text-xs text-slate-500 mb-3">Test connection to Firebase</p>
+                <button type="button" onClick={testCloudConnection} disabled={cloudDiagnosticLoading} className="px-4 py-2.5 bg-violet-100 text-violet-700 font-bold rounded-xl text-sm hover:bg-violet-200 disabled:opacity-60">
+                  {cloudDiagnosticLoading ? 'Testing…' : 'Test connection'}
+                </button>
+                {cloudDiagnostic && (
+                  <div className={`mt-3 p-3 rounded-lg text-sm ${cloudDiagnostic.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}>
+                    {cloudDiagnostic.ok ? (
+                      <span>{cloudDiagnostic.message}</span>
+                    ) : (
+                      <div>
+                        <p className="font-bold">{cloudDiagnostic.error}</p>
+                        {cloudDiagnostic.code && <p className="text-xs mt-1 opacity-80">Code: {cloudDiagnostic.code}</p>}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}

@@ -1451,12 +1451,20 @@ export default function App() {
       const { profile, fsAssignments, completions } = result;
       setLastCloudSaveError(null);
       if (profile && typeof profile === 'object') setProfileData(prev => ({ ...prev, ...profile }));
-      if (fsAssignments !== null && Array.isArray(fsAssignments)) {
+      if (fsAssignments !== null && Array.isArray(fsAssignments) && fsAssignments.length > 0) {
         loadReturnedAssignmentsRef.current = fsAssignments;
         const cleaned = removeMockAssignments(fsAssignments);
         applyingRemoteUpdateRef.current = true;
         setAssignments(cleaned);
         showToast(`Refreshed! ${cleaned.length} assignment${cleaned.length !== 1 ? 's' : ''} loaded`);
+      } else if (assignments.length > 0) {
+        try {
+          await platformData.saveAssignments(firebaseUserId, assignments);
+          setLastCloudSaveError(null);
+          showToast(`Synced ${assignments.length} assignment${assignments.length !== 1 ? 's' : ''} to cloud`);
+        } catch {
+          showToast('Cloud empty — your assignments will sync when saved', 'info');
+        }
       } else {
         showToast('Cloud empty — add assignments on this device first', 'info');
       }

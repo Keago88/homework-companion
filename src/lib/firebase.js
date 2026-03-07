@@ -1,10 +1,10 @@
 /**
  * Firebase initialization. Exports app, auth, db when configured.
- * Uses persistent cache (IndexedDB) to fix "client is offline" / unavailable errors.
+ * Uses memory cache to avoid IndexedDB errors (private browsing, quota, etc).
  */
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, getFirestore, enableNetwork, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, enableNetwork } from 'firebase/firestore';
 
 let app = null;
 let auth = null;
@@ -29,20 +29,11 @@ try {
     }
     try {
       db = initializeFirestore(app, {
-        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
         experimentalForceLongPolling: true,
         experimentalAutoDetectLongPolling: false
       });
-    } catch (e) {
-      if (typeof window !== 'undefined') console.warn('[HWC] Persistent cache failed, falling back:', e?.message);
-      try {
-        db = initializeFirestore(app, {
-          experimentalForceLongPolling: true,
-          experimentalAutoDetectLongPolling: false
-        });
-      } catch {
-        db = getFirestore(app);
-      }
+    } catch {
+      db = getFirestore(app);
     }
     enableNetwork(db).catch(() => {});
   } else if (typeof window !== 'undefined') {
